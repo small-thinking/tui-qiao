@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Tui-Qiao (推敲) - Truth Seeker (Gemini 3.1 Pro Edition)
+// @name         Tui-Qiao (推敲) - Truth Seeker (Gemini 3 Edition)
 // @namespace    http://tampermonkey.net/
 // @version      0.1
-// @description  A selection-based auditing tool to find "First Principles" powered by Gemini 3.1 Pro.
+// @description  A selection-based auditing tool to find "First Principles" powered by Gemini 3.
 // @author       small-thinking
 // @match        *://*/*
 // @grant        GM_xmlhttpRequest
@@ -16,7 +16,7 @@
 
     // --- Configuration ---
     const MODELS = {
-        primary: "gemini-3.1-pro-preview",
+        primary: "gemini-3-flash-preview", // 切换回极致速度的 Flash
         stable: "gemini-3.1-flash-lite-preview"
     };
 
@@ -91,7 +91,11 @@
             <div class="header"><div class="header-title">⚙️ Settings</div><div class="icon-btn" id="close-auditor">✕</div></div>
             <div class="content"><div style="display:flex; flex-direction:column; gap:12px;">
                 <div><label style="font-size:12px;font-weight:600;">Gemini API Key</label><input type="password" id="api-key-input" value="${settings.apiKey}" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #ddd;border-radius:6px;"></div>
-                <div><label style="font-size:12px;font-weight:600;">Engine</label><select id="model-select" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;"><option value="gemini-3.1-pro-preview">Gemini 3.1 Pro</option><option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite</option></select></div>
+                <div><label style="font-size:12px;font-weight:600;">Engine</label><select id="model-select" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">
+                    <option value="gemini-3-flash-preview">Gemini 3 Flash (Fastest)</option>
+                    <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (Deep)</option>
+                    <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite</option>
+                </select></div>
                 <div style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="search-toggle" ${settings.useSearch ? 'checked' : ''}><label for="search-toggle" style="font-size:12px;">Search Grounding</label></div>
                 <button class="save-btn" id="save-config">Save & Apply</button>
             </div></div>
@@ -118,14 +122,15 @@
         const thoughtEl = shadowRoot.getElementById('thought-container');
         const textEl = shadowRoot.getElementById('text-container');
 
-        const systemPrompt = `You are a calm, objective logic auditor. Goal: HOLISTIC TRUTH SEEKING. 
+        const systemPrompt = `You are a rigorous logic auditor for Truth Seeking. 
 **REPLY LANGUAGE MUST MATCH INPUT TEXT LANGUAGE.**
-CASE 1: Subjective/Personal -> Reply "Personal narrative. Outside of audit scope."
-CASE 2: News/Rumors -> PROACTIVELY search. Holistic verdict (✅/❌/⚠️).
-CASE 3: Opinions/Arguments -> Analyze the core logic and validity.
-Rules: Absolute Anonymity. Verdict First. Cohesive Synthesis. Max 5 sentences total. Provide up to 3 links.`;
+Classify and handle the input:
+CASE 1: Subjective/Personal Narratives -> Reply "Personal narrative. Outside of audit scope."
+CASE 2: News or Rumors -> PROACTIVELY search for evidence. Holistic verdict (✅/❌/⚠️).
+CASE 3: Opinions or Arguments -> Analyze logic using First Principles. 
 
-        // 显式降低安全限制，防止对技术讨论进行误拦截
+Rules: Absolute Anonymity. Verdict First with Emoji. Cohesive synthesis (max 4 sentences). Max 5 sentences total. Provide up to 3 links.`;
+
         const safetySettings = [
             { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
             { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
@@ -145,7 +150,7 @@ Rules: Absolute Anonymity. Verdict First. Cohesive Synthesis. Max 5 sentences to
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:streamGenerateContent?key=${settings.apiKey}&alt=sse`;
 
         GM_xmlhttpRequest({
-            method: "POST", url: url, headers: { "Content-Type": "application/json" }, data: JSON.stringify(payload), timeout: 90000,
+            method: "POST", url: url, headers: { "Content-Type": "application/json" }, data: JSON.stringify(payload), timeout: 60000,
             onprogress: (response) => {
                 const lines = response.responseText.split("\n");
                 lines.forEach(line => {
@@ -170,9 +175,9 @@ Rules: Absolute Anonymity. Verdict First. Cohesive Synthesis. Max 5 sentences to
             },
             onload: (response) => {
                 if (response.status !== 200) {
-                    textEl.innerHTML = `<span style="color:red;">Error ${response.status}: ${response.statusText || 'API Blocked/Key Invalid'}</span>`;
+                    textEl.innerHTML = `<span style="color:red;">Error ${response.status}: API Issue or Quota Exceeded.</span>`;
                 } else if (!fullContent && !fullThought) {
-                    textEl.innerHTML = `<i style="color:#e11d48;">Response Blocked by Safety Filters.</i><br><small style="color:#9ca3af;">Try switching to Gemini 3.1 Flash Lite or disabling search.</small>`;
+                    textEl.innerHTML = `<i style="color:#e11d48;">Response Blocked by Safety Filters.</i>`;
                 }
             }
         });
