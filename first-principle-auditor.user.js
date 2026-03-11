@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tui-Qiao (推敲) - Truth Seeker
 // @namespace    http://tampermonkey.net/
-// @version      0.7
+// @version      0.8
 // @description  A selection-based auditing tool to find "First Principles" within any text.
 // @author       small-thinking
 // @match        *://*/*
@@ -17,7 +17,7 @@
     // --- 初始化设置 ---
     const DEFAULT_SETTINGS = {
         apiKey: "",
-        model: "gemini-2.0-flash",
+        model: "gemini-2.0-flash", 
     };
 
     let settings = {
@@ -99,9 +99,10 @@
                     <div class="field">
                         <label>推理模型 / Model</label>
                         <select id="model-select">
-                            <option value="gemini-2.0-flash" ${settings.model === 'gemini-2.0-flash' ? 'selected' : ''}>Gemini 2.0 Flash (极速推荐)</option>
-                            <option value="gemini-1.5-flash" ${settings.model === 'gemini-1.5-flash' ? 'selected' : ''}>Gemini 1.5 Flash</option>
-                            <option value="gemini-1.5-pro" ${settings.model === 'gemini-1.5-pro' ? 'selected' : ''}>Gemini 1.5 Pro (深度分析)</option>
+                            <option value="gemini-2.0-flash" ${settings.model === 'gemini-2.0-flash' ? 'selected' : ''}>Gemini 2.0 Flash (推荐)</option>
+                            <option value="gemini-2.0-pro-exp-02-05" ${settings.model === 'gemini-2.0-pro-exp-02-05' ? 'selected' : ''}>Gemini 2.0 Pro (最强推理)</option>
+                            <option value="gemini-1.5-flash-latest" ${settings.model.includes('1.5-flash') ? 'selected' : ''}>Gemini 1.5 Flash</option>
+                            <option value="gemini-1.5-pro-latest" ${settings.model.includes('1.5-pro') ? 'selected' : ''}>Gemini 1.5 Pro</option>
                         </select>
                     </div>
                     <button class="save-btn" id="save-config">保存并应用</button>
@@ -159,7 +160,7 @@
         if (!settings.apiKey) { showConfig(); return; }
         showResult("推敲中...", "", true);
 
-        const systemPrompt = `你是一个说话直白、专讲大白话的逻辑审计师。你的任务是帮普通人看穿言论背后的真相。
+        const systemPrompt = `你是一个说话直白、专门讲“大白话”的逻辑审计师。你的任务是帮普通人看穿言论背后的真相。
 请按以下格式输出，禁止使用专业术语，要像在咖啡馆聊天一样直白：
 1. 到底在说什么：(一句话总结对方的本质意图)
 2. 他在忽悠什么：(拆穿那些虚头巴脑的逻辑或夸大的词)
@@ -171,6 +172,7 @@
             systemInstruction: { parts: [{ text: systemPrompt }] }
         };
 
+        // 统一使用 v1beta 接口
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}`;
 
         GM_xmlhttpRequest({
@@ -188,10 +190,10 @@
                         showResult("出错啦", `错误码 ${response.status}: ${data.error?.message || 'API 拒绝了请求'}`);
                     }
                 } catch (e) {
-                    showResult("解析失败", "返回数据格式不对，请稍后再试。");
+                    showResult("解析失败", "返回数据格式不对，请检查 API Key。");
                 }
             },
-            onerror: () => showResult("网络错误", "无法连接到 Google 节点，请检查梯子或网络。")
+            onerror: () => showResult("网络错误", "无法连接到 Google 节点，请检查梯子。")
         });
     }
 
