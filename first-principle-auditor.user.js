@@ -22,7 +22,7 @@
 
     let settings = {
         apiKey: GM_getValue("apiKey", ""),
-        model: GM_getValue("model", MODELS.primary),
+        model: MODELS.primary,
         useSearch: GM_getValue("useSearch", true)
     };
 
@@ -108,13 +108,13 @@
                     <div class="field">
                         <label>Engine</label>
                         <select id="model-select">
-                            <option value="gemini-3-flash-preview" ${settings.model === 'gemini-3-flash-preview' ? 'selected' : ''}>Gemini 3 Flash (Powerful)</option>
-                            <option value="gemini-1.5-flash-latest" ${settings.model === 'gemini-1.5-flash-latest' ? 'selected' : ''}>Gemini 1.5 Flash (Stable)</option>
+                            <option value="gemini-3-flash-preview" ${settings.model === 'gemini-3-flash-preview' ? 'selected' : ''}>Gemini 3 Flash</option>
+                            <option value="gemini-1.5-flash-latest" ${settings.model === 'gemini-1.5-flash-latest' ? 'selected' : ''}>Gemini 1.5 Flash</option>
                         </select>
                     </div>
                     <div class="field" style="flex-direction:row; align-items:center; gap:8px;">
                         <input type="checkbox" id="search-toggle" ${settings.useSearch ? 'checked' : ''} style="width:auto;">
-                        <label for="search-toggle">Search Grounding (Uses more quota)</label>
+                        <label for="search-toggle">Search Grounding</label>
                     </div>
                     <button class="save-btn" id="save-config">Save & Apply</button>
                 </div>
@@ -142,6 +142,8 @@
         ensurePanel();
         resultPanel.style.display = 'flex';
         if (isLoading || !isConfiguring) {
+            // 关键：更新前彻底清空面板内容
+            resultPanel.innerHTML = ''; 
             resultPanel.innerHTML = `
                 ${renderHeader(title)}
                 <div class="content">
@@ -165,22 +167,25 @@
         const systemPrompt = `You are a calm, objective logic auditor. Your goal is truth seeking.
 **REPLY LANGUAGE MUST MATCH THE INPUT TEXT LANGUAGE.**
 Rules:
-1. VISUAL JUDGMENT: Start the very first sentence with an emoji conclusion:
-   - ✅: Logically sound and factual.
-   - ❌: Significant logical fallacies or factual errors.
-   - ⚠️: Moderate confidence, logical ambiguity, or context required.
-   - ❓: Insufficient information to judge.
+1. VISUAL JUDGMENT: Start the very first sentence with an emoji conclusion: ✅, ❌, ⚠️, or ❓.
 2. Identify Nature: Only audit logic, facts, or technical claims. For pure subjective feelings, reply that it's outside of scope.
 3. Objective Inquiry: Acknowledge solid logic and point out leaps flatly.
 4. Evidence: ${settings.useSearch ? 'Provide up to 3 links if a claim is debunked or verified.' : 'Use internal knowledge only.'}
 5. Conciseness: Maximum 5 sentences total (excluding links).
 6. Plain Language: Direct, professional, no jargon.`;
 
+        // 关键：强制重置 contents 数组，确保没有历史记忆干扰
         const payload = {
-            contents: [{ parts: [{ text: selectedText }] }],
-            systemInstruction: { parts: [{ text: systemPrompt }] },
-            tools: [{ google_search: {} }]
+            contents: [{ 
+                role: "user",
+                parts: [{ text: selectedText }] 
+            }],
+            systemInstruction: { parts: [{ text: systemPrompt }] }
         };
+        
+        if (settings.useSearch) {
+            payload.tools = [{ google_search: {} }];
+        }
 
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}`;
 
@@ -189,7 +194,7 @@ Rules:
             url: url,
             headers: { "Content-Type": "application/json" },
             data: JSON.stringify(payload),
-            timeout: 20000,
+            timeout: 25000,
             onload: (response) => {
                 if (isConfiguring) return;
                 try {
@@ -198,7 +203,7 @@ Rules:
                         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
                         showResult("Audit Result", text || "No response content.");
                     } else if (response.status === 429) {
-                        showResult("Quota Exceeded", "API limit reached. Tips:\n1. ⚙️ Turn off 'Search Grounding'.\n2. Switch to 1.5 Flash.\n3. Check your billing details.");
+                        showResult("Quota Exceeded", "Limit reached. Try disabling Search Grounding or switching to 1.5 Flash.");
                     } else {
                         showResult("Error", `Code ${response.status}: ${data.error?.message || 'Request failed'}`);
                     }
@@ -211,6 +216,7 @@ Rules:
         });
     }
 
+    // --- Listeners ---
     document.addEventListener('mouseup', (e) => {
         const selection = window.getSelection().toString().trim();
         if (selection.length < 5) return;
@@ -223,19 +229,16 @@ Rules:
             const style = document.createElement('style');
             style.textContent = STYLES;
             btnShadow.appendChild(style);
-
             floatingBtn = document.createElement('div');
             floatingBtn.id = 'tui-qiao-float-btn';
             floatingBtn.innerHTML = '🔍 Tui-Qiao';
             btnShadow.appendChild(floatingBtn);
-            
             floatingBtn.onclick = (ev) => {
                 ev.stopPropagation();
                 callGemini(selection);
                 floatingBtn.style.display = 'none';
             };
         }
-
         floatingBtn.style.left = `${e.clientX + 5}px`;
         floatingBtn.style.top = `${e.clientY - 40}px`;
         floatingBtn.style.display = 'flex';
