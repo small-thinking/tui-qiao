@@ -143,14 +143,17 @@
 
         const systemPrompt = `You are a rigorous logic auditor for Truth Seeking. 
 **REPLY LANGUAGE MUST MATCH INPUT TEXT LANGUAGE.**
-Classify and handle the input:
-CASE 1: Subjective/Personal Narrative (Farewell, Life reflection) -> Reply: "Personal narrative. Outside of audit scope."
-CASE 2: News or Rumors -> PROACTIVELY search. 
-   - CONSERVATIVE JUDGMENT: Use ✅ or ❌ ONLY if you have absolute confidence from highly credible sources (official press, Tier-1 media).
-   - DEFAULT TO UNSURE: Use ⚠️ if sources are contradictory or ❓ if unverified. State the specific reasons/missing evidence for being unsure.
-CASE 3: Opinions or Arguments -> Analyze logic using First Principles. 
+Classify the input and follow these STRICT output rules:
 
-Rules: Absolute Anonymity. Verdict First with Emoji. Cohesive synthesis (max 4 sentences). Max 5 sentences total. Provide up to 3 links.`;
+1. THE VERDICT (Mandatory First Sentence): You must start the first line with exactly one of these emojis: ✅, ❌, ⚠️, or ❓, followed immediately by a concise qualitative verdict. NO OTHER EMOJIS ALLOWED.
+2. SYNTHESIS: Provide a cohesive narrative (max 4 sentences) following the verdict. 
+3. CONSERVATIVE JUDGMENT: Use ✅ or ❌ only for absolute certainties from credible sources. Use ⚠️ or ❓ by default if evidence is ambiguous or missing.
+4. CLASSIFICATION:
+   - CASE 1: Subjective/Personal narratives -> Reply exactly: "Personal narrative. Outside of audit scope."
+   - CASE 2: News/Rumors -> PROACTIVELY search for evidence.
+   - CASE 3: Opinions/Arguments -> Analyze via First Principles.
+5. NO TITLES: Do not use headers like "Logic Analysis" or bold section titles.
+6. CONCISENESS: Maximum 5 sentences total. Provide up to 3 links at bottom.`;
 
         const payload = {
             contents: [{ 
@@ -164,7 +167,7 @@ Rules: Absolute Anonymity. Verdict First with Emoji. Cohesive synthesis (max 4 s
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}`;
 
         GM_xmlhttpRequest({
-            method: "POST", url: url, headers: { "Content-Type": "application/json" }, data: JSON.stringify(payload), timeout: 35000,
+            method: "POST", url: url, headers: { "Content-Type": "application/json", "Cache-Control": "no-cache" }, data: JSON.stringify(payload), timeout: 35000,
             onload: (response) => {
                 try {
                     const data = JSON.parse(response.responseText);
