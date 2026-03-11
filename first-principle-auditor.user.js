@@ -62,14 +62,15 @@
             padding: 6px 12px; display: none; align-items: center; gap: 6px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-family: -apple-system, sans-serif;
             font-size: 13px; font-weight: 600; user-select: none;
+            transition: transform 0.1s, background 0.2s;
         }
+        #tui-qiao-float-btn:hover { background: #1f2937; transform: scale(1.05); }
     `;
 
     function resetPanel() {
         const existing = document.getElementById('fp-auditor-root');
         if (existing) existing.remove();
-        resultPanel = null;
-        shadowRoot = null;
+        resultPanel = null; shadowRoot = null;
     }
 
     function ensurePanel() {
@@ -78,62 +79,34 @@
         container.id = 'fp-auditor-root';
         document.body.appendChild(container);
         shadowRoot = container.attachShadow({ mode: 'open' });
-        const style = document.createElement('style');
-        style.textContent = STYLES;
+        const style = document.createElement('style'); style.textContent = STYLES;
         shadowRoot.appendChild(style);
         resultPanel = document.createElement('div');
-        resultPanel.className = 'panel';
-        shadowRoot.appendChild(resultPanel);
+        resultPanel.className = 'panel'; shadowRoot.appendChild(resultPanel);
     }
 
     function renderHeader(title) {
-        return `
-            <div class="header">
-                <div class="header-title"><span>🔍</span> ${title}</div>
-                <div style="display:flex; gap:10px;">
-                    <div class="icon-btn settings-trigger">⚙️</div>
-                    <div class="icon-btn" id="close-auditor">✕</div>
-                </div>
-            </div>
-        `;
+        return `<div class="header"><div class="header-title"><span>🔍</span> ${title}</div><div style="display:flex; gap:10px;"><div class="icon-btn settings-trigger">⚙️</div><div class="icon-btn" id="close-auditor">✕</div></div></div>`;
     }
 
     function showConfig() {
         ensurePanel();
-        isConfiguring = true;
-        resultPanel.style.display = 'flex';
+        isConfiguring = true; resultPanel.style.display = 'flex';
         resultPanel.innerHTML = `
             ${renderHeader("Settings")}
-            <div class="content">
-                <div style="display:flex; flex-direction:column; gap:12px;">
-                    <div class="field">
-                        <label>Gemini API Key</label>
-                        <input type="password" id="api-key-input" value="${settings.apiKey}" placeholder="Paste API Key">
-                    </div>
-                    <div class="field">
-                        <label>Engine</label>
-                        <select id="model-select">
-                            <option value="gemini-3-flash-preview" ${settings.model === 'gemini-3-flash-preview' ? 'selected' : ''}>Gemini 3 Flash</option>
-                            <option value="gemini-1.5-flash-latest" ${settings.model === 'gemini-1.5-flash-latest' ? 'selected' : ''}>Gemini 1.5 Flash</option>
-                        </select>
-                    </div>
-                    <div class="field" style="flex-direction:row; align-items:center; gap:8px;">
-                        <input type="checkbox" id="search-toggle" ${settings.useSearch ? 'checked' : ''} style="width:auto;">
-                        <label for="search-toggle">Search Grounding</label>
-                    </div>
-                    <button class="save-btn" id="save-config">Save & Apply</button>
-                </div>
-            </div>
+            <div class="content"><div style="display:flex; flex-direction:column; gap:12px;">
+                <div><label style="font-size:12px;font-weight:600;">Gemini API Key</label><input type="password" id="api-key-input" value="${settings.apiKey}" placeholder="Paste API Key" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #ddd;border-radius:6px;"></div>
+                <div><label style="font-size:12px;font-weight:600;">Engine</label><select id="model-select" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;"><option value="gemini-3-flash-preview">Gemini 3 Flash</option><option value="gemini-1.5-flash-latest">Gemini 1.5 Flash</option></select></div>
+                <div style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="search-toggle" ${settings.useSearch ? 'checked' : ''}><label for="search-toggle" style="font-size:12px;">Search Grounding</label></div>
+                <button class="save-btn" id="save-config">Save & Apply</button>
+            </div></div>
         `;
         shadowRoot.getElementById('save-config').onclick = () => {
             settings.apiKey = shadowRoot.getElementById('api-key-input').value;
             settings.model = shadowRoot.getElementById('model-select').value;
             settings.useSearch = shadowRoot.getElementById('search-toggle').checked;
-            GM_setValue("apiKey", settings.apiKey);
-            GM_setValue("model", settings.model);
-            GM_setValue("useSearch", settings.useSearch);
-            isConfiguring = false;
-            showResult("Success", "Settings saved.", false, "");
+            GM_setValue("apiKey", settings.apiKey); GM_setValue("model", settings.model); GM_setValue("useSearch", settings.useSearch);
+            isConfiguring = false; showResult("Success", "Configuration saved.", false, "");
         };
         bindBasicEvents();
     }
@@ -165,31 +138,19 @@
 
     async function callGemini(selectedText) {
         if (!settings.apiKey) { showConfig(); return; }
-        resetPanel(); 
-        isConfiguring = false;
+        resetPanel(); isConfiguring = false;
         showResult("Auditing...", "", true, selectedText);
 
         const systemPrompt = `You are a rigorous logic auditor for Truth Seeking. 
 **REPLY LANGUAGE MUST MATCH INPUT TEXT LANGUAGE.**
-Classify and handle the input text into one of these 3 cases:
+Classify and handle the input:
+CASE 1: Subjective/Personal Narrative (Farewell, Life reflection) -> Reply: "Personal narrative. Outside of audit scope."
+CASE 2: News or Rumors -> PROACTIVELY search. 
+   - CONSERVATIVE JUDGMENT: Use ✅ or ❌ ONLY if you have absolute confidence from highly credible sources (official press, Tier-1 media).
+   - DEFAULT TO UNSURE: Use ⚠️ if sources are contradictory or ❓ if unverified. State the specific reasons/missing evidence for being unsure.
+CASE 3: Opinions or Arguments -> Analyze logic using First Principles. 
 
-CASE 1: Subjective/Personal Narrative
-- Examples: Career announcements, farewell posts, purely subjective feelings, gratitude.
-- Action: DO NOT audit. Reply: "Personal narrative. Outside of audit scope."
-
-CASE 2: News or Rumors
-- Examples: Claims about business deals, project status, product delays, industry rumors.
-- Action: MUST search for evidence to prove or disprove. Provide a holistic verdict (✅/❌/⚠️).
-
-CASE 3: Opinions or Arguments
-- Examples: Technical theories, economic claims, logical deductions.
-- Action: Search if necessary, or rely on First Principle reasoning. Critique the internal logic and validity.
-
-General Rules:
-1. ABSOLUTE ANONYMITY: Never mention or guess author identities.
-2. VERDICT FIRST: First sentence must be an overall judgment with an emoji (✅, ❌, ⚠️, or ❓).
-3. SYNTHESIS: Cohesive narrative (max 4 sentences). No bullet points.
-4. EVIDENCE: Provide up to 3 links at bottom if Case 2 or 3.`;
+Rules: Absolute Anonymity. Verdict First with Emoji. Cohesive synthesis (max 4 sentences). Max 5 sentences total. Provide up to 3 links.`;
 
         const payload = {
             contents: [{ 
@@ -198,50 +159,42 @@ General Rules:
             }],
             systemInstruction: { parts: [{ text: systemPrompt }] }
         };
-        
         if (settings.useSearch) payload.tools = [{ google_search: {} }];
 
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}`;
+
         GM_xmlhttpRequest({
-            method: "POST",
-            url: `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}`,
-            headers: { "Content-Type": "application/json", "Cache-Control": "no-cache" },
-            data: JSON.stringify(payload),
-            timeout: 35000,
+            method: "POST", url: url, headers: { "Content-Type": "application/json" }, data: JSON.stringify(payload), timeout: 35000,
             onload: (response) => {
                 try {
                     const data = JSON.parse(response.responseText);
                     if (response.status === 200) {
                         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                        showResult("Audit Result", text || "Blocked by safety filters.", false, selectedText);
-                    } else {
-                        showResult("API Error", `Code ${response.status}`, false, selectedText);
-                    }
-                } catch (e) { showResult("Parse Error", "Invalid data.", false, selectedText); }
+                        showResult("Audit Result", text || "No content.", false, selectedText);
+                    } else { showResult("Error", `Code ${response.status}`, false, selectedText); }
+                } catch (e) { showResult("Parse Error", "Failed.", false, selectedText); }
             },
-            onerror: () => showResult("Network Error", "Check your connection.", false, selectedText),
-            ontimeout: () => showResult("Timeout", "Took too long.", false, selectedText)
+            onerror: () => showResult("Network Error", "Failed.", false, selectedText),
+            ontimeout: () => showResult("Timeout", "Failed.", false, selectedText)
         });
     }
 
     document.addEventListener('mouseup', (e) => {
         const selection = window.getSelection().toString().trim();
-        if (selection.length < 5) return;
-
+        if (selection.length < 5) {
+            if (floatingBtn) floatingBtn.style.display = 'none';
+            return;
+        }
         if (!floatingBtn) {
-            const container = document.createElement('div');
-            container.id = 'tui-qiao-btn-root';
-            document.body.appendChild(container);
-            const btnShadow = container.attachShadow({ mode: 'open' });
-            const style = document.createElement('style');
-            style.textContent = STYLES;
-            btnShadow.appendChild(style);
             floatingBtn = document.createElement('div');
             floatingBtn.id = 'tui-qiao-float-btn';
             floatingBtn.innerHTML = '🔍 Tui-Qiao';
-            btnShadow.appendChild(floatingBtn);
+            floatingBtn.style.cssText = `position: fixed; cursor: pointer; z-index: 2147483646; background: #111827; color: white; border-radius: 20px; padding: 6px 12px; display: none; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); font-family: -apple-system, sans-serif; font-size: 13px; font-weight: 600; user-select: none; transition: transform 0.1s;`;
+            document.body.appendChild(floatingBtn);
             floatingBtn.onclick = (ev) => {
                 ev.stopPropagation();
-                callGemini(selection);
+                const s = window.getSelection().toString().trim();
+                if (s) callGemini(s);
                 floatingBtn.style.display = 'none';
             };
         }
