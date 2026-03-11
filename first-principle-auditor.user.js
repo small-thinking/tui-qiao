@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tui-Qiao (推敲) - Truth Seeker
 // @namespace    http://tampermonkey.net/
-// @version      0.6
+// @version      0.7
 // @description  A selection-based auditing tool to find "First Principles" within any text.
 // @author       small-thinking
 // @match        *://*/*
@@ -75,7 +75,7 @@
     function renderHeader(title) {
         return `
             <div class="header">
-                <div class="header-title"><span>🧠</span> ${title}</div>
+                <div class="header-title"><span>🔍</span> ${title}</div>
                 <div style="display:flex; gap:14px;">
                     <div class="icon-btn settings-trigger" title="Settings">⚙️</div>
                     <div class="icon-btn" id="close-auditor">✕</div>
@@ -133,7 +133,7 @@
         resultPanel.innerHTML = `
             ${renderHeader(title)}
             <div class="content">
-                ${isLoading ? `<div style="text-align:center; padding: 20px;"><span class="loading-spinner"></span><br><br><span style="font-size:12px; color:#6b7280;">正在拨开迷雾...</span></div>` : formatResponse(content)}
+                ${isLoading ? `<div style="text-align:center; padding: 20px;"><span class="loading-spinner"></span><br><br><span style="font-size:12px; color:#6b7280;">正在推敲中...</span></div>` : formatResponse(content)}
             </div>
         `;
         bindBasicEvents();
@@ -141,7 +141,6 @@
 
     function formatResponse(text) {
         if (!text) return "未能获取结果，请检查 API Key 或网络。";
-        // 增强版 Markdown 解析，适配大白话输出
         const sections = text.split('\n\n');
         return sections.map(s => {
             if (s.includes('：') || s.includes(':')) {
@@ -172,7 +171,6 @@
             systemInstruction: { parts: [{ text: systemPrompt }] }
         };
 
-        // 使用 v1beta 确保支持 systemInstruction
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}`;
 
         GM_xmlhttpRequest({
@@ -202,7 +200,7 @@
         if (selection.length < 5) return;
         if (!floatingBtn) {
             floatingBtn = document.createElement('div');
-            floatingBtn.innerHTML = '🧠';
+            floatingBtn.innerHTML = '🔍';
             floatingBtn.style = `position: fixed; cursor: pointer; font-size: 18px; z-index: 2147483646; background: white; border: 1px solid #2563eb; border-radius: 8px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); transition: transform 0.1s;`;
             floatingBtn.onclick = (ev) => { ev.stopPropagation(); callGemini(selection); floatingBtn.style.display = 'none'; };
             document.body.appendChild(floatingBtn);
