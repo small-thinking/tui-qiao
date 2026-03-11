@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tui-Qiao (推敲) - Truth Seeker (Gemini 3 Edition)
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.3
 // @description  A selection-based auditing tool to find "First Principles" powered by Gemini 3.
 // @author       small-thinking
 // @match        *://*/*
@@ -24,7 +24,8 @@
 
     let settings = {
         apiKey: GM_getValue("apiKey", ""),
-        model: currentModel
+        model: currentModel,
+        language: GM_getValue("language", "auto") // 默认自动判断
     };
 
     // --- UI 状态 ---
@@ -101,6 +102,14 @@
                             <option value="gemini-2.0-flash" ${settings.model === 'gemini-2.0-flash' ? 'selected' : ''}>Gemini 2.0 Flash</option>
                         </select>
                     </div>
+                    <div class="field">
+                        <label>Language / 回复语言</label>
+                        <select id="lang-select">
+                            <option value="auto" ${settings.language === 'auto' ? 'selected' : ''}>Auto (Follow Text)</option>
+                            <option value="zh" ${settings.language === 'zh' ? 'selected' : ''}>Chinese (中文)</option>
+                            <option value="en" ${settings.language === 'en' ? 'selected' : ''}>English</option>
+                        </select>
+                    </div>
                     <button class="save-btn" id="save-config">保存应用</button>
                 </div>
             </div>
@@ -108,10 +117,13 @@
         shadowRoot.getElementById('save-config').onclick = () => {
             const newKey = shadowRoot.getElementById('api-key-input').value;
             const newModel = shadowRoot.getElementById('model-select').value;
+            const newLang = shadowRoot.getElementById('lang-select').value;
             GM_setValue("apiKey", newKey);
             GM_setValue("model", newModel);
+            GM_setValue("language", newLang);
             settings.apiKey = newKey;
             settings.model = newModel;
+            settings.language = newLang;
             isConfiguring = false;
             showResult("Success", "设置已保存。");
         };
@@ -140,10 +152,15 @@
         if (!settings.apiKey) { showConfig(); return; }
         showResult("正在审计...", "", true);
 
-        const systemPrompt = `你是一个冷静、客观的逻辑审计师。
-你的任务是评估言论的逻辑置信度。
+        let langInstruction = "";
+        if (settings.language === "zh") langInstruction = "请务必使用中文回复。";
+        else if (settings.language === "en") langInstruction = "Please reply in English.";
+        else langInstruction = "请根据输入文本的语言决定回复语言（中文或英文）。";
+
+        const systemPrompt = `你是一个冷静、客观的逻辑审计师。你的任务是评估言论的逻辑置信度。
+${langInstruction}
 规则：
-1. 识别性质：只审计包含逻辑推论、事实主张、技术分析或 ROI 建模的内容。对于纯粹的个人感受（如“我觉得”、“我很开心”、“我不喜欢”）或主观审美，请直接回复：“属于个人主观感受，不在审计范围内。”
+1. 识别性质：只审计逻辑推论、事实主张或技术分析。对于纯主观感受（如“我很开心”），请直接回复：“属于个人主观感受，不在审计范围内。”
 2. 立场中立：逻辑严密则肯定，有漏洞则指出。
 3. 极致精炼：总回复控制在5句话以内。
 4. 语言平实：禁止术语堆砌，直白陈述本质。`;
@@ -173,7 +190,7 @@
                     showResult("Parsing Error", "数据解析失败。");
                 }
             },
-            onerror: () => showResult("Network Error", "网络连接失败。")
+            onerror: () => showResult("Network Error", "连接失败。")
         });
     }
 
