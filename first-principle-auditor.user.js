@@ -177,7 +177,8 @@ Rules:
         };
         
         if (settings.useSearch) {
-            payload.tools = [{ google_search_retrieval: {} }];
+            // 修复：更新工具名称为最新的 google_search 规范
+            payload.tools = [{ google_search: {} }];
         }
 
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}`;
@@ -187,7 +188,7 @@ Rules:
             url: url,
             headers: { "Content-Type": "application/json" },
             data: JSON.stringify(payload),
-            timeout: 20000,
+            timeout: 25000,
             onload: (response) => {
                 if (isConfiguring) return;
                 try {
