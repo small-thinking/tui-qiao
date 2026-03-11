@@ -18,7 +18,7 @@ In an era of information overload and "vibes-based" decision making, Tui-Qiao ac
    git clone https://github.com/small-thinking/tui-qiao.git
    cd tui-qiao
    npm install express cors
-   node gemini_bridge.js
+   node bridge.js
    ```
 2. **Install Userscript**
    Copy the content of `first-principle-auditor.user.js` and install it in your browser extension (e.g., Tampermonkey).
