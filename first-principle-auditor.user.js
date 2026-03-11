@@ -165,11 +165,12 @@
         const systemPrompt = `You are a calm, objective logic auditor. Your goal is truth seeking.
 **REPLY LANGUAGE MUST MATCH THE INPUT TEXT LANGUAGE.**
 Rules:
-1. Identify Nature: Only audit logic, facts, or technical claims. For pure subjective feelings (e.g., "I am happy"), reply that it's outside of scope.
-2. Objective Inquiry: Acknowledge solid logic and point out leaps or biases flatly.
-3. Evidence: ${settings.useSearch ? 'Use your search capability to verify facts. Provide up to 3 links if a claim is debunked or verified.' : 'Use your internal knowledge only.'}
-4. Conciseness: Maximum 5 sentences total.
-5. Plain Language: Direct, professional, no jargon.`;
+1. OVERALL JUDGMENT FIRST: The very first sentence must be a concise overall conclusion (e.g., "This is a logically sound philosophical argument" or "This claim contains significant logical leaps").
+2. Identify Nature: Only audit logic, facts, or technical claims. For pure subjective feelings, reply that it's outside of scope.
+3. Objective Inquiry: Acknowledge solid logic and point out leaps flatly.
+4. Evidence: ${settings.useSearch ? 'Provide up to 3 links if a claim is debunked or verified.' : 'Use internal knowledge only.'}
+5. Conciseness: Maximum 5 sentences total (excluding links).
+6. Plain Language: Direct, professional, no jargon.`;
 
         const payload = {
             contents: [{ parts: [{ text: selectedText }] }],
@@ -177,7 +178,6 @@ Rules:
         };
         
         if (settings.useSearch) {
-            // 修复：更新工具名称为最新的 google_search 规范
             payload.tools = [{ google_search: {} }];
         }
 
@@ -188,7 +188,7 @@ Rules:
             url: url,
             headers: { "Content-Type": "application/json" },
             data: JSON.stringify(payload),
-            timeout: 25000,
+            timeout: 20000,
             onload: (response) => {
                 if (isConfiguring) return;
                 try {
