@@ -38,20 +38,20 @@
             position: fixed; top: 20px; right: 20px; width: 400px; max-height: 85vh;
             background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); z-index: 2147483647;
-            display: none; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica;
+            display: flex; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica;
             overflow: hidden; animation: slideIn 0.2s ease-out;
         }
         @keyframes slideIn { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .header { padding: 12px 16px; background: #f8fafc; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
         .header-title { font-weight: 700; font-size: 14px; color: #111827; display: flex; align-items: center; gap: 6px; }
-        .content { padding: 16px; overflow-y: auto; font-size: 14px; line-height: 1.6; color: #374151; background: #fff; min-height: 60px; }
+        .content { padding: 16px; overflow-y: auto; font-size: 14px; line-height: 1.6; color: #374151; background: #fff; }
+        .input-preview { font-size: 11px; color: #6b7280; background: #f9fafb; padding: 8px; border-radius: 6px; margin-bottom: 12px; border: 1px dashed #e5e7eb; white-space: pre-wrap; max-height: 80px; overflow-y: auto; }
         .loading-spinner { border: 2px solid #f3f3f3; border-top: 2px solid var(--primary); border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .icon-btn { cursor: pointer; color: #9ca3af; transition: color 0.2s; font-size: 16px; }
         .icon-btn:hover { color: var(--primary); }
         a { color: var(--primary); text-decoration: none; }
         a:hover { text-decoration: underline; }
-        .config-view { display: flex; flex-direction: column; gap: 12px; }
         .field label { font-size: 12px; font-weight: 600; color: #4b5563; }
         .field input, .field select { padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; width: 100%; box-sizing: border-box; }
         .save-btn { background: #111827; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: 600; }
@@ -62,10 +62,15 @@
             padding: 6px 12px; display: none; align-items: center; gap: 6px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-family: -apple-system, sans-serif;
             font-size: 13px; font-weight: 600; user-select: none;
-            transition: transform 0.1s, background 0.2s;
         }
-        #tui-qiao-float-btn:hover { background: #1f2937; transform: scale(1.05); }
     `;
+
+    function resetPanel() {
+        const existing = document.getElementById('fp-auditor-root');
+        if (existing) existing.remove();
+        resultPanel = null;
+        shadowRoot = null;
+    }
 
     function ensurePanel() {
         if (resultPanel) return;
@@ -100,7 +105,7 @@
         resultPanel.innerHTML = `
             ${renderHeader("Settings")}
             <div class="content">
-                <div class="config-view">
+                <div style="display:flex; flex-direction:column; gap:12px;">
                     <div class="field">
                         <label>Gemini API Key</label>
                         <input type="password" id="api-key-input" value="${settings.apiKey}" placeholder="Paste API Key">
@@ -112,7 +117,7 @@
                             <option value="gemini-1.5-flash-latest" ${settings.model === 'gemini-1.5-flash-latest' ? 'selected' : ''}>Gemini 1.5 Flash</option>
                         </select>
                     </div>
-                    <div class="field" style="flex-direction:row; align-items:center; gap:8px;">
+                    <div class="field" style="display:flex; align-items:center; gap:8px;">
                         <input type="checkbox" id="search-toggle" ${settings.useSearch ? 'checked' : ''} style="width:auto;">
                         <label for="search-toggle">Search Grounding</label>
                     </div>
@@ -128,7 +133,7 @@
             GM_setValue("model", settings.model);
             GM_setValue("useSearch", settings.useSearch);
             isConfiguring = false;
-            showResult("Success", "Configuration saved.");
+            showResult("Success", "Settings saved.", false, "");
         };
         bindBasicEvents();
     }
@@ -138,14 +143,14 @@
         shadowRoot.querySelector('.settings-trigger').onclick = () => showConfig();
     }
 
-    function showResult(title, content, isLoading = false) {
+    function showResult(title, content, isLoading, selectedText) {
         ensurePanel();
         resultPanel.style.display = 'flex';
         if (isLoading || !isConfiguring) {
-            resultPanel.innerHTML = ''; 
             resultPanel.innerHTML = `
                 ${renderHeader(title)}
                 <div class="content">
+                    ${selectedText ? `<div class="input-preview"><b>Selected Text:</b>\n${selectedText}</div>` : ''}
                     ${isLoading ? `<div style="text-align:center; padding: 10px;"><span class="loading-spinner"></span> Sifting Truth...</div>` : `<div style="white-space:pre-wrap;">${formatLinks(content)}</div>`}
                 </div>
             `;
@@ -160,64 +165,49 @@
 
     async function callGemini(selectedText) {
         if (!settings.apiKey) { showConfig(); return; }
-        isConfiguring = false; 
-        showResult("Auditing...", "", true);
-
-        const requestId = Math.random().toString(36).substring(7);
-        const saltPrompt = ` (Request ID: ${requestId}) `;
+        
+        // 核心修复：物理重置所有变量和 UI
+        resetPanel(); 
+        isConfiguring = false;
+        showResult("Auditing...", "", true, selectedText);
 
         const systemPrompt = `You are a calm, objective logic auditor. Your goal is truth seeking.
 **REPLY LANGUAGE MUST MATCH THE INPUT TEXT LANGUAGE.**
 Rules:
-1. STRICT BOUNDARY: Do NOT audit personal career announcements, farewell posts, or purely subjective life reflections. If the text is a personal narrative or job transition update, reply simply: "Personal narrative/career transition. Outside of audit scope."
-2. NO IDENTITY GUESSING: Do NOT try to identify or guess the author's name if it's not explicitly mentioned in the text. Do NOT hallucinate identities based on context.
-3. LOGIC ONLY: Only audit universal logic, technical claims, or economic arguments. If a technical claim exists (e.g. "AI compresses time"), evaluate ONLY that part.
-4. VISUAL JUDGMENT: Start with ✅, ❌, ⚠️, or ❓.
-5. CONCISENESS: Maximum 5 sentences total.
-6. PLAIN LANGUAGE: Direct and professional.`;
+1. STRICT BOUNDARY: Do NOT audit personal career announcements, farewell posts, or subjective narratives. Reply: "Personal narrative. Outside of audit scope."
+2. LOGIC ONLY: Only audit universal logic, technical claims, or economic arguments.
+3. VISUAL JUDGMENT: Start with ✅, ❌, ⚠️, or ❓.
+4. CONCISENESS: Maximum 5 sentences total.`;
 
         const payload = {
             contents: [{ 
                 role: "user",
-                parts: [{ text: selectedText + saltPrompt }] 
+                parts: [{ text: selectedText + ` [Request ID: ${Math.random().toString(36).substring(7)}]` }] 
             }],
             systemInstruction: { parts: [{ text: systemPrompt }] }
         };
         
-        if (settings.useSearch) {
-            payload.tools = [{ google_search: {} }];
-        }
-
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}`;
+        if (settings.useSearch) payload.tools = [{ google_search: {} }];
 
         GM_xmlhttpRequest({
             method: "POST",
-            url: url,
-            headers: { 
-                "Content-Type": "application/json",
-                "Cache-Control": "no-cache",
-                "Pragma": "no-cache"
-            },
+            url: `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}`,
+            headers: { "Content-Type": "application/json", "Cache-Control": "no-cache" },
             data: JSON.stringify(payload),
             timeout: 25000,
             onload: (response) => {
-                if (isConfiguring) return;
                 try {
                     const data = JSON.parse(response.responseText);
                     if (response.status === 200) {
                         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                        showResult("Audit Result", text || "No response content.");
-                    } else if (response.status === 429) {
-                        showResult("Quota Exceeded", "Limit reached. Try disabling Search Grounding or switching to 1.5 Flash.");
+                        showResult("Audit Result", text || "No response.", false, selectedText);
                     } else {
-                        showResult("Error", `Code ${response.status}: ${data.error?.message || 'Request failed'}`);
+                        showResult("Error", `Code ${response.status}`, false, selectedText);
                     }
-                } catch (e) {
-                    showResult("Parsing Error", "Invalid data received.");
-                }
+                } catch (e) { showResult("Parsing Error", "Invalid data.", false, selectedText); }
             },
-            onerror: () => showResult("Network Error", "Connection failed."),
-            ontimeout: () => showResult("Timeout", "Request timed out.")
+            onerror: () => showResult("Network Error", "Failed.", false, selectedText),
+            ontimeout: () => showResult("Timeout", "Failed.", false, selectedText)
         });
     }
 
