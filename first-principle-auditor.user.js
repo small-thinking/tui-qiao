@@ -45,7 +45,7 @@
         @keyframes slideIn { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .header { padding: 12px 16px; background: #f8fafc; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
         .header-title { font-weight: 700; font-size: 14px; color: #111827; display: flex; align-items: center; gap: 6px; }
-        .content { padding: 16px; overflow-y: auto; font-size: 14px; line-height: 1.6; color: #374151; background: #fff; }
+        .content { padding: 16px; overflow-y: auto; font-size: 14px; line-height: 1.6; color: #374151; background: #fff; min-height: 60px; }
         .loading-spinner { border: 2px solid #f3f3f3; border-top: 2px solid var(--primary); border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .icon-btn { cursor: pointer; color: #9ca3af; transition: color 0.2s; font-size: 16px; }
@@ -56,6 +56,18 @@
         .field label { font-size: 12px; font-weight: 600; color: #4b5563; }
         .field input, .field select { padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; width: 100%; box-sizing: border-box; }
         .save-btn { background: #111827; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+        
+        /* 浮动按钮新样式 */
+        #tui-qiao-float-btn {
+            position: fixed; cursor: pointer; z-index: 2147483646;
+            background: #111827; color: white; border-radius: 20px;
+            padding: 6px 12px; display: none; align-items: center; gap: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-family: -apple-system, sans-serif;
+            font-size: 13px; font-weight: 600; user-select: none;
+            transition: transform 0.1s, background 0.2s;
+        }
+        #tui-qiao-float-btn:hover { background: #1f2937; transform: scale(1.05); }
+        #tui-qiao-float-btn:active { transform: scale(0.95); }
     `;
 
     function ensurePanel() {
@@ -138,7 +150,6 @@
     }
 
     function formatLinks(text) {
-        // 简单的正则表达式，将 URL 转换为 HTML 链接
         const urlRegex = /(https?:\/\/[^\s]+)/g;
         return text.replace(urlRegex, (url) => `<a href="${url}" target="_blank">${url}</a>`);
     }
@@ -151,7 +162,7 @@
         const systemPrompt = `你是一个冷静、客观的逻辑审计师。你的任务是评估言论的逻辑置信度。
 回复语言必须与用户选中文字的语言保持一致。
 规则：
-1. 识别性质：只审计逻辑、事实或技术分析。对纯主观感受不予评价。
+1. 识别性质：只审计包含逻辑、事实或技术分析的内容。对纯主观感受不予评价。
 2. 客观探究：如果逻辑严密、置信度高，请客观肯定。
 3. 证据支持：你可以使用内置的搜索能力核实事实。如果判定为谬误或事实，请务必在回复末尾提供最多3个证据链接。
 4. 极致精炼：正文控制在5句话以内。
@@ -160,7 +171,7 @@
         const payload = {
             contents: [{ parts: [{ text: selectedText }] }],
             systemInstruction: { parts: [{ text: systemPrompt }] },
-            tools: [{ google_search_retrieval: {} }] // 显式开启联网搜索功能
+            tools: [{ google_search_retrieval: {} }]
         };
 
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}`;
@@ -170,7 +181,7 @@
             url: url,
             headers: { "Content-Type": "application/json" },
             data: JSON.stringify(payload),
-            timeout: 20000, // 联网搜索可能较慢，稍微增加超时
+            timeout: 20000,
             onload: (response) => {
                 if (isConfiguring) return;
                 try {
@@ -190,23 +201,40 @@
         });
     }
 
+    // --- 交互监听 ---
     document.addEventListener('mouseup', (e) => {
         const selection = window.getSelection().toString().trim();
         if (selection.length < 5) return;
+
         if (!floatingBtn) {
             floatingBtn = document.createElement('div');
-            floatingBtn.innerHTML = '🔍';
-            floatingBtn.style = `position: fixed; cursor: pointer; font-size: 18px; z-index: 2147483646; background: white; border: 1px solid #2563eb; border-radius: 8px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15);`;
-            floatingBtn.onclick = (ev) => { ev.stopPropagation(); callGemini(selection); floatingBtn.style.display = 'none'; };
-            document.body.appendChild(floatingBtn);
+            floatingBtn.id = 'tui-qiao-float-btn';
+            floatingBtn.innerHTML = '🔍 Tui-Qiao';
+            
+            // 为了让浮动按钮也能享受 shadowRoot 样式，我们把它放进根容器
+            const container = document.createElement('div');
+            container.id = 'tui-qiao-btn-root';
+            document.body.appendChild(container);
+            const btnShadow = container.attachShadow({ mode: 'open' });
+            const style = document.createElement('style');
+            style.textContent = STYLES;
+            btnShadow.appendChild(style);
+            btnShadow.appendChild(floatingBtn);
+            
+            floatingBtn.onclick = (ev) => {
+                ev.stopPropagation();
+                callGemini(selection);
+                floatingBtn.style.display = 'none';
+            };
         }
+
         floatingBtn.style.left = `${e.clientX + 5}px`;
         floatingBtn.style.top = `${e.clientY - 40}px`;
         floatingBtn.style.display = 'flex';
     });
 
     document.addEventListener('mousedown', (e) => {
-        if (floatingBtn && !floatingBtn.contains(e.target) && !resultPanel?.contains(e.target)) {
+        if (floatingBtn && !floatingBtn.contains(e.target)) {
             setTimeout(() => { if (!window.getSelection().toString()) if(floatingBtn) floatingBtn.style.display = 'none'; }, 100);
         }
     });
