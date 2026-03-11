@@ -150,7 +150,7 @@
             resultPanel.innerHTML = `
                 ${renderHeader(title)}
                 <div class="content">
-                    ${selectedText ? `<div class="input-preview"><b>Selected Text:</b>\n${selectedText}</div>` : ''}
+                    ${selectedText ? `<div class="input-preview"><b>Input:</b>\n${selectedText}</div>` : ''}
                     ${isLoading ? `<div style="text-align:center; padding: 10px;"><span class="loading-spinner"></span> Sifting Truth...</div>` : `<div style="white-space:pre-wrap;">${formatLinks(content)}</div>`}
                 </div>
             `;
@@ -165,19 +165,21 @@
 
     async function callGemini(selectedText) {
         if (!settings.apiKey) { showConfig(); return; }
-        
         resetPanel(); 
         isConfiguring = false;
         showResult("Auditing...", "", true, selectedText);
 
-        const systemPrompt = `You are a calm, objective logic auditor. Your goal is truth seeking.
+        const systemPrompt = `You are a rigorous logic auditor. Your goal is TRUTH SEEKING via PROACTIVE EVIDENCE.
 **REPLY LANGUAGE MUST MATCH THE INPUT TEXT LANGUAGE.**
 Rules:
-1. FOCUS ON CLAIMS: Audit logical inferences, facts, or technical/business rumors. 
-2. DISTINGUISH NARRATIVES: Do NOT audit purely emotional life reflections or "farewell/gratitude" posts. HOWEVER, if a post contains specific claims about project status, performance, or industry rumors (even in a career context), you MUST audit those specific claims.
-3. LOGIC ONLY: Acknowledge solid logic and point out leaps flatly.
-4. VISUAL JUDGMENT: Start with ✅, ❌, ⚠️, or ❓.
-5. CONCISENESS: Maximum 5 sentences total.`;
+1. PROACTIVE VERIFICATION: You MUST try to find related evidence to prove or disprove the claims. If a premise is unverified (e.g., "X joined Company Y"), explicitly search for it.
+2. CONFIDENT JUDGMENT: 
+   - Use ✅ if proven true or logically solid.
+   - Use ❌ if proven false or containing major fallacies.
+   - Use ⚠️ if evidence is contradictory.
+   - Use ❓ ONLY after a failed exhaustive search for evidence.
+3. LOGIC ONLY: Audit project progress, technical claims, or industry rumors. Ignore purely emotional narratives.
+4. CONCISENESS: Maximum 5 sentences total. Be direct.`;
 
         const payload = {
             contents: [{ 
