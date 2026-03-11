@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tui-Qiao (推敲) - Truth Seeker (Gemini 3 Edition)
 // @namespace    http://tampermonkey.net/
-// @version      1.4
+// @version      1.5
 // @description  A selection-based auditing tool to find "First Principles" powered by Gemini 3.
 // @author       small-thinking
 // @match        *://*/*
@@ -24,8 +24,7 @@
 
     let settings = {
         apiKey: GM_getValue("apiKey", ""),
-        model: currentModel,
-        language: GM_getValue("language", "auto")
+        model: currentModel
     };
 
     // --- UI 状态 ---
@@ -102,14 +101,6 @@
                             <option value="gemini-2.0-flash" ${settings.model === 'gemini-2.0-flash' ? 'selected' : ''}>Gemini 2.0 Flash</option>
                         </select>
                     </div>
-                    <div class="field">
-                        <label>Language</label>
-                        <select id="lang-select">
-                            <option value="auto" ${settings.language === 'auto' ? 'selected' : ''}>Auto</option>
-                            <option value="zh" ${settings.language === 'zh' ? 'selected' : ''}>Chinese</option>
-                            <option value="en" ${settings.language === 'en' ? 'selected' : ''}>English</option>
-                        </select>
-                    </div>
                     <button class="save-btn" id="save-config">保存应用</button>
                 </div>
             </div>
@@ -117,10 +108,8 @@
         shadowRoot.getElementById('save-config').onclick = () => {
             settings.apiKey = shadowRoot.getElementById('api-key-input').value;
             settings.model = shadowRoot.getElementById('model-select').value;
-            settings.language = shadowRoot.getElementById('lang-select').value;
             GM_setValue("apiKey", settings.apiKey);
             GM_setValue("model", settings.model);
-            GM_setValue("language", settings.language);
             isConfiguring = false;
             showResult("Success", "设置已保存。");
         };
@@ -135,7 +124,6 @@
     function showResult(title, content, isLoading = false) {
         ensurePanel();
         resultPanel.style.display = 'flex';
-        // 如果不是在配置中，或者强制进入加载状态，则更新内容
         if (isLoading || !isConfiguring) {
             resultPanel.innerHTML = `
                 ${renderHeader(title)}
@@ -149,23 +137,16 @@
 
     async function callGemini(selectedText) {
         if (!settings.apiKey) { showConfig(); return; }
-        
-        // 关键：每次调用前彻底重置配置状态
         isConfiguring = false; 
         showResult("正在审计...", "", true);
 
-        let langInstruction = "";
-        if (settings.language === "zh") langInstruction = "请务必使用中文回复。";
-        else if (settings.language === "en") langInstruction = "Please reply in English.";
-        else langInstruction = "请根据输入文本的语言决定回复语言。";
-
         const systemPrompt = `你是一个冷静、客观的逻辑审计师。你的任务是评估言论的逻辑置信度。
-${langInstruction}
+**回复语言必须与用户选中的文本语言保持一致（如果是中文则用中文回复，如果是英文则用英文回复）。**
 规则：
-1. 识别性质：只审计逻辑推论、事实主张或技术分析。对于纯主观感受，请直接回复：“属于个人主观感受，不在审计范围内。”
-2. 立场中立：逻辑严密则肯定，有漏洞则指出。
-3. 极致精炼：总回复控制在5句话以内。
-4. 语言平实：直白陈述本质。`;
+1. 识别性质：只审计包含逻辑、事实或技术分析的内容。对于纯个人感受或主观审美（如“我很高兴”），请直接回复表示不予评价。
+2. 立场中立：逻辑严密则客观肯定，有明显漏洞则平实指出。
+3. 极致精炼：总回复严禁超过5句话。
+4. 语言平实：像专业同事沟通一样，直白且直接。`;
 
         const payload = {
             contents: [{ parts: [{ text: selectedText }] }],
@@ -179,23 +160,23 @@ ${langInstruction}
             url: url,
             headers: { "Content-Type": "application/json" },
             data: JSON.stringify(payload),
-            timeout: 15000, // 15秒超时
+            timeout: 15000,
             onload: (response) => {
-                if (isConfiguring) return; // 如果用户在请求期间打开了设置，则不覆盖设置界面
+                if (isConfiguring) return;
                 try {
                     const data = JSON.parse(response.responseText);
                     if (response.status === 200) {
                         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                        showResult("推敲结果", text || "无回复内容。");
+                        showResult("推敲结果", text || "No response content.");
                     } else {
-                        showResult("出错啦", `API Error ${response.status}: ${data.error?.message || '未知错误'}`);
+                        showResult("Error", `API Error ${response.status}`);
                     }
                 } catch (e) {
-                    showResult("解析失败", "返回数据无法解析。");
+                    showResult("Parsing Error", "解析数据失败。");
                 }
             },
-            onerror: () => showResult("网络错误", "无法连接 Google 节点。"),
-            ontimeout: () => showResult("请求超时", "请检查网络环境或 API Key。")
+            onerror: () => showResult("Network Error", "连接失败。"),
+            ontimeout: () => showResult("Timeout", "请求超时。")
         });
     }
 
@@ -205,7 +186,7 @@ ${langInstruction}
         if (!floatingBtn) {
             floatingBtn = document.createElement('div');
             floatingBtn.innerHTML = '🔍';
-            floatingBtn.style = `position: fixed; cursor: pointer; font-size: 18px; z-index: 2147483646; background: white; border: 1px solid #2563eb; border-radius: 8px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15);`;
+            floatingBtn.style = `position: fixed; cursor: pointer; font-size: 18px; z-index: 2147483646; background: white; border: 1px solid #2563eb; border-radius: 8px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15);`;
             floatingBtn.onclick = (ev) => { ev.stopPropagation(); callGemini(selection); floatingBtn.style.display = 'none'; };
             document.body.appendChild(floatingBtn);
         }
