@@ -163,6 +163,10 @@
         isConfiguring = false; 
         showResult("Auditing...", "", true);
 
+        // 加盐：在请求体中加入唯一标识符，绕过缓存且不违反 API URL 规则
+        const requestId = Math.random().toString(36).substring(7);
+        const saltPrompt = ` (Request ID: ${requestId} - IGNORE THIS) `;
+
         const systemPrompt = `You are a calm, objective logic auditor. Your goal is truth seeking.
 **REPLY LANGUAGE MUST MATCH THE INPUT TEXT LANGUAGE.**
 Rules:
@@ -176,7 +180,7 @@ Rules:
         const payload = {
             contents: [{ 
                 role: "user",
-                parts: [{ text: selectedText }] 
+                parts: [{ text: selectedText + saltPrompt }] 
             }],
             systemInstruction: { parts: [{ text: systemPrompt }] }
         };
@@ -185,16 +189,15 @@ Rules:
             payload.tools = [{ google_search: {} }];
         }
 
-        // Cache Busting: 添加随机时间戳防止 API 或浏览器缓存 POST 结果
-        const timestamp = Date.now();
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}&_t=${timestamp}`;
+        // 修复：移除违规的 URL 参数，使用 Body 加盐
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}`;
 
         GM_xmlhttpRequest({
             method: "POST",
             url: url,
             headers: { 
                 "Content-Type": "application/json",
-                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Cache-Control": "no-cache",
                 "Pragma": "no-cache"
             },
             data: JSON.stringify(payload),
