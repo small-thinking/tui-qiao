@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    // --- 配置与迁移 ---
+    // --- Configuration ---
     const MODELS = {
         primary: "gemini-3-flash-preview",
         stable: "gemini-1.5-flash-latest"
@@ -23,10 +23,10 @@
     let settings = {
         apiKey: GM_getValue("apiKey", ""),
         model: GM_getValue("model", MODELS.primary),
-        useSearch: GM_getValue("useSearch", true) // 新增：是否使用联网搜索
+        useSearch: GM_getValue("useSearch", true)
     };
 
-    // --- UI 状态 ---
+    // --- UI State ---
     let floatingBtn = null;
     let resultPanel = null;
     let shadowRoot = null;
@@ -98,7 +98,7 @@
         isConfiguring = true;
         resultPanel.style.display = 'flex';
         resultPanel.innerHTML = `
-            ${renderHeader("设置 / Settings")}
+            ${renderHeader("Settings")}
             <div class="content">
                 <div class="config-view">
                     <div class="field">
@@ -108,15 +108,15 @@
                     <div class="field">
                         <label>Engine</label>
                         <select id="model-select">
-                            <option value="gemini-3-flash-preview" ${settings.model === 'gemini-3-flash-preview' ? 'selected' : ''}>Gemini 3 Flash (逻辑强/配额紧)</option>
-                            <option value="gemini-1.5-flash-latest" ${settings.model === 'gemini-1.5-flash-latest' ? 'selected' : ''}>Gemini 1.5 Flash (配额多/最稳定)</option>
+                            <option value="gemini-3-flash-preview" ${settings.model === 'gemini-3-flash-preview' ? 'selected' : ''}>Gemini 3 Flash (Powerful)</option>
+                            <option value="gemini-1.5-flash-latest" ${settings.model === 'gemini-1.5-flash-latest' ? 'selected' : ''}>Gemini 1.5 Flash (Stable)</option>
                         </select>
                     </div>
                     <div class="field" style="flex-direction:row; align-items:center; gap:8px;">
                         <input type="checkbox" id="search-toggle" ${settings.useSearch ? 'checked' : ''} style="width:auto;">
-                        <label for="search-toggle">联网查证 (开启会消耗更多额度)</label>
+                        <label for="search-toggle">Search Grounding (Uses more quota)</label>
                     </div>
-                    <button class="save-btn" id="save-config">保存应用</button>
+                    <button class="save-btn" id="save-config">Save & Apply</button>
                 </div>
             </div>
         `;
@@ -128,7 +128,7 @@
             GM_setValue("model", settings.model);
             GM_setValue("useSearch", settings.useSearch);
             isConfiguring = false;
-            showResult("Success", "设置已保存。");
+            showResult("Success", "Configuration saved.");
         };
         bindBasicEvents();
     }
@@ -145,7 +145,7 @@
             resultPanel.innerHTML = `
                 ${renderHeader(title)}
                 <div class="content">
-                    ${isLoading ? `<div style="text-align:center; padding: 10px;"><span class="loading-spinner"></span> 推敲中...</div>` : `<div style="white-space:pre-wrap;">${formatLinks(content)}</div>`}
+                    ${isLoading ? `<div style="text-align:center; padding: 10px;"><span class="loading-spinner"></span> Sifting Truth...</div>` : `<div style="white-space:pre-wrap;">${formatLinks(content)}</div>`}
                 </div>
             `;
             bindBasicEvents();
@@ -160,23 +160,22 @@
     async function callGemini(selectedText) {
         if (!settings.apiKey) { showConfig(); return; }
         isConfiguring = false; 
-        showResult("正在审计...", "", true);
+        showResult("Auditing...", "", true);
 
-        const systemPrompt = `你是一个冷静、客观的逻辑审计师。你的任务是评估言论的逻辑置信度。
-回复语言必须与用户选中文字的语言保持一致。
-规则：
-1. 识别性质：只审计包含逻辑、事实或技术分析的内容。对纯主观感受不予评价。
-2. 客观探究：如果逻辑严密、置信度高，请客观肯定。
-3. 证据支持：${settings.useSearch ? '你可以使用搜索能力核实事实。如果判定为谬误或事实，请务必在末尾提供最多3个证据链接。' : '基于你的知识库进行判断，不使用搜索。'}
-4. 极致精炼：正文控制在5句话以内。
-5. 语言平实：直白陈述本质。`;
+        const systemPrompt = `You are a calm, objective logic auditor. Your goal is truth seeking.
+**REPLY LANGUAGE MUST MATCH THE INPUT TEXT LANGUAGE.**
+Rules:
+1. Identify Nature: Only audit logic, facts, or technical claims. For pure subjective feelings (e.g., "I am happy"), reply that it's outside of scope.
+2. Objective Inquiry: Acknowledge solid logic and point out leaps or biases flatly.
+3. Evidence: ${settings.useSearch ? 'Use your search capability to verify facts. Provide up to 3 links if a claim is debunked or verified.' : 'Use your internal knowledge only.'}
+4. Conciseness: Maximum 5 sentences total.
+5. Plain Language: Direct, professional, no jargon.`;
 
         const payload = {
             contents: [{ parts: [{ text: selectedText }] }],
             systemInstruction: { parts: [{ text: systemPrompt }] }
         };
         
-        // 只有开启了开关才加入 tools
         if (settings.useSearch) {
             payload.tools = [{ google_search_retrieval: {} }];
         }
@@ -195,18 +194,18 @@
                     const data = JSON.parse(response.responseText);
                     if (response.status === 200) {
                         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                        showResult("推敲结果", text || "无回复。");
+                        showResult("Audit Result", text || "No response content.");
                     } else if (response.status === 429) {
-                        showResult("配额用尽", "你的账号今日配额已达上限。建议：\n1. ⚙️ 关闭‘联网查证’以降低消耗。\n2. 切换引擎为 1.5 Flash（最稳定）。\n3. 检查你的 API 账单详情。");
+                        showResult("Quota Exceeded", "API limit reached. Tips:\n1. ⚙️ Turn off 'Search Grounding'.\n2. Switch to 1.5 Flash.\n3. Check your billing details.");
                     } else {
-                        showResult("出错啦", `错误码 ${response.status}: ${data.error?.message || '请求被拒绝'}`);
+                        showResult("Error", `Code ${response.status}: ${data.error?.message || 'Request failed'}`);
                     }
                 } catch (e) {
-                    showResult("解析失败", "返回数据无法解析。");
+                    showResult("Parsing Error", "Invalid data received.");
                 }
             },
-            onerror: () => showResult("网络错误", "连接失败。"),
-            ontimeout: () => showResult("超时", "推敲超时。")
+            onerror: () => showResult("Network Error", "Connection failed."),
+            ontimeout: () => showResult("Timeout", "Request timed out.")
         });
     }
 
