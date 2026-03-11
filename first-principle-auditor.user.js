@@ -57,7 +57,6 @@
         .field input, .field select { padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; width: 100%; box-sizing: border-box; }
         .save-btn { background: #111827; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: 600; }
         
-        /* 浮动按钮新样式 */
         #tui-qiao-float-btn {
             position: fixed; cursor: pointer; z-index: 2147483646;
             background: #111827; color: white; border-radius: 20px;
@@ -67,7 +66,6 @@
             transition: transform 0.1s, background 0.2s;
         }
         #tui-qiao-float-btn:hover { background: #1f2937; transform: scale(1.05); }
-        #tui-qiao-float-btn:active { transform: scale(0.95); }
     `;
 
     function ensurePanel() {
@@ -189,14 +187,16 @@
                     if (response.status === 200) {
                         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
                         showResult("推敲结果", text || "无回复。");
+                    } else if (response.status === 429) {
+                        showResult("请求太频繁", "Google API 限制了免费版的调用频率。请稍等一分钟再试，或者考虑切换更轻量的模型。");
                     } else {
-                        showResult("Error", `API Error ${response.status}`);
+                        showResult("出错啦", `错误码 ${response.status}: ${data.error?.message || 'API 拒绝了请求'}`);
                     }
                 } catch (e) {
-                    showResult("Parsing Error", "解析失败。");
+                    showResult("解析失败", "解析返回数据时出错。");
                 }
             },
-            onerror: () => showResult("Network Error", "连接失败。"),
+            onerror: () => showResult("网络错误", "连接失败。"),
             ontimeout: () => showResult("Timeout", "联网推敲超时。")
         });
     }
@@ -207,18 +207,18 @@
         if (selection.length < 5) return;
 
         if (!floatingBtn) {
-            floatingBtn = document.createElement('div');
-            floatingBtn.id = 'tui-qiao-float-btn';
-            floatingBtn.innerHTML = '🔍 Tui-Qiao';
-            
-            // 为了让浮动按钮也能享受 shadowRoot 样式，我们把它放进根容器
             const container = document.createElement('div');
             container.id = 'tui-qiao-btn-root';
             document.body.appendChild(container);
             const btnShadow = container.attachShadow({ mode: 'open' });
+            
             const style = document.createElement('style');
             style.textContent = STYLES;
             btnShadow.appendChild(style);
+
+            floatingBtn = document.createElement('div');
+            floatingBtn.id = 'tui-qiao-float-btn';
+            floatingBtn.innerHTML = '🔍 Tui-Qiao';
             btnShadow.appendChild(floatingBtn);
             
             floatingBtn.onclick = (ev) => {
@@ -234,8 +234,11 @@
     });
 
     document.addEventListener('mousedown', (e) => {
-        if (floatingBtn && !floatingBtn.contains(e.target)) {
-            setTimeout(() => { if (!window.getSelection().toString()) if(floatingBtn) floatingBtn.style.display = 'none'; }, 100);
+        // 由于按钮在 Shadow DOM 里，需要特殊判定
+        const btnRoot = document.getElementById('tui-qiao-btn-root');
+        if (btnRoot && e.composedPath().includes(btnRoot.shadowRoot.getElementById('tui-qiao-float-btn'))) {
+            return;
         }
+        setTimeout(() => { if (!window.getSelection().toString()) if(floatingBtn) floatingBtn.style.display = 'none'; }, 100);
     });
 })();
