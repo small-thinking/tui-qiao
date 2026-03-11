@@ -52,7 +52,6 @@
         .icon-btn:hover { color: var(--primary); }
         a { color: var(--primary); text-decoration: none; word-break: break-all; font-size: 12px; display: block; margin-top: 4px; }
         a:hover { text-decoration: underline; }
-        .config-view { display: flex; flex-direction: column; gap: 12px; }
         .field label { font-size: 12px; font-weight: 600; color: #4b5563; }
         .field input, .field select { padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; width: 100%; box-sizing: border-box; }
         .save-btn { background: #111827; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: 600; }
@@ -170,13 +169,19 @@
         isConfiguring = false;
         showResult("Auditing...", "", true, selectedText);
 
-        const systemPrompt = `You are a calm, objective logic auditor. Your goal is HOLISTIC TRUTH SEEKING.
+        const systemPrompt = `You are a calm, objective logic auditor. Your mission is TRUTH SEEKING.
 **REPLY LANGUAGE MUST MATCH THE INPUT TEXT LANGUAGE.**
 Rules:
-1. OVERALL JUDGMENT FIRST: Start with ✅, ❌, ⚠️, or ❓.
-2. SYNTHESIS: Provide a cohesive narrative (up to 4 sentences).
-3. EVIDENCE: ${settings.useSearch ? 'Proactively verify claims. Provide links.' : 'Use internal knowledge.'}
-4. CONCISENESS: Max 5 sentences total.`;
+1. ABSOLUTE ANONYMITY: Treat the text as anonymous. Even if you identify the original author via search, NEVER mention their name or identity unless it is explicitly written in the provided text. Focus purely on the content.
+2. OVERALL JUDGMENT FIRST: Start with a verdict:
+   - ✅: Claims are verified true or logically solid.
+   - ❌: Claims are proven false, officially denied, or contains major fallacies.
+   - ⚠️: Claims are contradictory or partially misleading.
+   - ❓: Truly unverified after exhaustive search.
+3. SYNTHESIS: Provide a cohesive narrative (max 4 sentences) synthesizing your evidence.
+4. SCOPE: Ignore purely emotional narratives. Only audit specific claims (project status, business rumors, technical points).
+5. CONCISENESS: Maximum 5 sentences total.
+6. REFERENCES: Provide up to 3 evidence links at the bottom.`;
 
         const payload = {
             contents: [{ 
@@ -193,7 +198,7 @@ Rules:
             url: `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}`,
             headers: { "Content-Type": "application/json", "Cache-Control": "no-cache" },
             data: JSON.stringify(payload),
-            timeout: 35000, // 增加到 35 秒以应对搜索延迟
+            timeout: 35000,
             onload: (response) => {
                 try {
                     const data = JSON.parse(response.responseText);
@@ -210,11 +215,11 @@ Rules:
                         showResult("API Error", `Code ${response.status}: ${data.error?.message || 'Unknown error'}`, false, selectedText);
                     }
                 } catch (e) { 
-                    showResult("Parse Error", `Failed to read API response. Raw: ${response.responseText.substring(0, 50)}...`, false, selectedText); 
+                    showResult("Parse Error", `Failed to read API response.`, false, selectedText); 
                 }
             },
-            onerror: (err) => showResult("Network Error", `Connection failed: ${err.statusText || 'Check your proxy'}`, false, selectedText),
-            ontimeout: () => showResult("Timeout", "The audit took too long (35s+). Try disabling Search Grounding.", false, selectedText)
+            onerror: (err) => showResult("Network Error", `Connection failed.`, false, selectedText),
+            ontimeout: () => showResult("Timeout", "The audit took too long (35s+).", false, selectedText)
         });
     }
 
