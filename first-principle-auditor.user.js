@@ -142,7 +142,6 @@
         ensurePanel();
         resultPanel.style.display = 'flex';
         if (isLoading || !isConfiguring) {
-            // 关键：更新前彻底清空面板内容
             resultPanel.innerHTML = ''; 
             resultPanel.innerHTML = `
                 ${renderHeader(title)}
@@ -174,7 +173,6 @@ Rules:
 5. Conciseness: Maximum 5 sentences total (excluding links).
 6. Plain Language: Direct, professional, no jargon.`;
 
-        // 关键：强制重置 contents 数组，确保没有历史记忆干扰
         const payload = {
             contents: [{ 
                 role: "user",
@@ -187,12 +185,18 @@ Rules:
             payload.tools = [{ google_search: {} }];
         }
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}`;
+        // Cache Busting: 添加随机时间戳防止 API 或浏览器缓存 POST 结果
+        const timestamp = Date.now();
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}&_t=${timestamp}`;
 
         GM_xmlhttpRequest({
             method: "POST",
             url: url,
-            headers: { "Content-Type": "application/json" },
+            headers: { 
+                "Content-Type": "application/json",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache"
+            },
             data: JSON.stringify(payload),
             timeout: 25000,
             onload: (response) => {
