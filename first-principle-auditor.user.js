@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tui-Qiao (推敲) - Truth Seeker (Gemini 3 Edition)
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  A selection-based auditing tool to find "First Principles" powered by Gemini 3.
 // @author       small-thinking
 // @match        *://*/*
@@ -140,13 +140,13 @@
         if (!settings.apiKey) { showConfig(); return; }
         showResult("正在审计...", "", true);
 
-        const systemPrompt = `你是一个冷静、客观、追求事实真相的逻辑审计师。
-你的任务是评估所提供言论的客观性和逻辑置信度。
-要求：
-1. 立场中立：如果对方逻辑严密、置信度高，请直接给予肯定；如果有明显漏洞或利益导向，请指出。
-2. 平实语言：禁止使用浮夸或学术化的术语，像专业同事一样对话。
-3. 极致精炼：总回复字数控制在5句话以内。
-4. 结构：直接陈述核心本质、逻辑置信度评估、以及最重要的一个疑点（如有）。`;
+        const systemPrompt = `你是一个冷静、客观的逻辑审计师。
+你的任务是评估言论的逻辑置信度。
+规则：
+1. 识别性质：只审计包含逻辑推论、事实主张、技术分析或 ROI 建模的内容。对于纯粹的个人感受（如“我觉得”、“我很开心”、“我不喜欢”）或主观审美，请直接回复：“属于个人主观感受，不在审计范围内。”
+2. 立场中立：逻辑严密则肯定，有漏洞则指出。
+3. 极致精炼：总回复控制在5句话以内。
+4. 语言平实：禁止术语堆砌，直白陈述本质。`;
 
         const payload = {
             contents: [{ parts: [{ text: selectedText }] }],
@@ -170,10 +170,10 @@
                         showResult("Error", `API Error ${response.status}`);
                     }
                 } catch (e) {
-                    showResult("Parsing Error", "数据格式解析失败。");
+                    showResult("Parsing Error", "数据解析失败。");
                 }
             },
-            onerror: () => showResult("Network Error", "连接失败。")
+            onerror: () => showResult("Network Error", "网络连接失败。")
         });
     }
 
