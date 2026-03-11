@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Tui-Qiao (推敲) - Truth Seeker (Gemini 3 Edition)
+// @name         Tui-Qiao (推敲) - Truth Seeker (Gemini 3.1 Pro Edition)
 // @namespace    http://tampermonkey.net/
 // @version      0.1
-// @description  A selection-based auditing tool to find "First Principles" powered by Gemini 3.
+// @description  A selection-based auditing tool to find "First Principles" powered by Gemini 3.1 Pro.
 // @author       small-thinking
 // @match        *://*/*
 // @grant        GM_xmlhttpRequest
@@ -16,7 +16,7 @@
 
     // --- Configuration ---
     const MODELS = {
-        primary: "gemini-3-flash-preview",
+        primary: "gemini-3.1-pro-preview", // 升级到目前最强的 3.1 Pro
         stable: "gemini-1.5-flash-latest"
     };
 
@@ -36,7 +36,7 @@
         :host { --primary: #2563eb; --bg: #ffffff; --text: #1f2937; --border: #e5e7eb; }
         .panel {
             position: fixed; top: 20px; right: 20px; width: 420px; max-height: 85vh;
-            background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+            background: var(--bg); border: 1px solid var(--border); border-radius: 16px;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); z-index: 2147483647;
             display: none; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica;
             overflow: hidden; animation: slideIn 0.2s ease-out;
@@ -111,9 +111,10 @@
                         <input type="password" id="api-key-input" value="${settings.apiKey}" placeholder="Paste API Key">
                     </div>
                     <div class="field">
-                        <label>Engine</label>
+                        <label>Engine (Upgrade to 3.1 Pro Recommended)</label>
                         <select id="model-select">
-                            <option value="gemini-3-flash-preview" ${settings.model === 'gemini-3-flash-preview' ? 'selected' : ''}>Gemini 3 Flash</option>
+                            <option value="gemini-3.1-pro-preview" ${settings.model === 'gemini-3.1-pro-preview' ? 'selected' : ''}>Gemini 3.1 Pro (Ph.D Logic)</option>
+                            <option value="gemini-3.1-flash-lite-preview" ${settings.model === 'gemini-3.1-flash-lite-preview' ? 'selected' : ''}>Gemini 3.1 Flash Lite</option>
                             <option value="gemini-1.5-flash-latest" ${settings.model === 'gemini-1.5-flash-latest' ? 'selected' : ''}>Gemini 1.5 Flash</option>
                         </select>
                     </div>
@@ -151,7 +152,7 @@
                 ${renderHeader(title)}
                 <div class="content">
                     ${selectedText ? `<div class="input-preview"><b>Input:</b>\n${selectedText}</div>` : ''}
-                    ${isLoading ? `<div style="text-align:center; padding: 10px;"><span class="loading-spinner"></span> Sifting Truth...</div>` : `<div style="white-space:pre-wrap;">${formatLinks(content)}</div>`}
+                    ${isLoading ? `<div style="text-align:center; padding: 10px;"><span class="loading-spinner"></span> Sifting Truth with Pro...</div>` : `<div style="white-space:pre-wrap;">${formatLinks(content)}</div>`}
                 </div>
             `;
             bindBasicEvents();
@@ -169,34 +170,26 @@
         isConfiguring = false;
         showResult("Auditing...", "", true, selectedText);
 
-        const systemPrompt = `You are a rigorous logic auditor for Truth Seeking. 
+        const systemPrompt = `You are a rigorous Ph.D level logic auditor. Your goal is HOLISTIC TRUTH SEEKING.
 **REPLY LANGUAGE MUST MATCH INPUT TEXT LANGUAGE.**
-Classify and handle the input text into one of these 3 cases:
+Classify and handle the input:
+CASE 1: Subjective/Personal Narrative (Farewell, Life reflection) -> Reply: "Personal narrative. Outside of audit scope."
+CASE 2: News or Rumors (Business, Projects) -> PROACTIVELY search for evidence to prove/disprove. Holistic verdict (✅/❌/⚠️).
+CASE 3: Opinions or Arguments (Technical, Economic) -> Use First Principle reasoning + Search if needed.
 
-CASE 1: Subjective/Personal Narrative
-- Examples: Career announcements, farewell posts, purely subjective feelings, gratitude.
-- Action: DO NOT audit. Reply: "Personal narrative. Outside of audit scope."
-
-CASE 2: News or Rumors
-- Examples: Claims about business deals, project status, product delays, industry rumors.
-- Action: MUST search for evidence to prove or disprove. Provide a holistic verdict (✅/❌/⚠️).
-
-CASE 3: Opinions or Arguments
-- Examples: Technical theories, economic claims, logical deductions.
-- Action: Search if necessary, or rely on First Principle reasoning. Critique the internal logic and validity.
-
-General Rules:
-1. ABSOLUTE ANONYMITY: Never mention or guess author identities.
-2. VERDICT FIRST: First sentence must be an overall judgment with an emoji (✅, ❌, ⚠️, or ❓).
-3. SYNTHESIS: Cohesive narrative (max 4 sentences). No bullet points.
-4. EVIDENCE: Provide up to 3 links at bottom if Case 2 or 3.`;
+Rules:
+1. ABSOLUTE ANONYMITY: NEVER mention or guess author identities.
+2. VERDICT FIRST: Start with ✅, ❌, ⚠️, or ❓.
+3. SYNTHESIS: Cohesive narrative (max 4 sentences).
+4. EVIDENCE: Provide up to 3 links.`;
 
         const payload = {
             contents: [{ 
                 role: "user",
                 parts: [{ text: selectedText + ` [ID: ${Math.random().toString(36).substring(7)}]` }] 
             }],
-            systemInstruction: { parts: [{ text: systemPrompt }] }
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            // 为 3.1 Pro 优化的配置（如果有需要可以添加 thinking_level）
         };
         
         if (settings.useSearch) payload.tools = [{ google_search: {} }];
@@ -206,20 +199,20 @@ General Rules:
             url: `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}`,
             headers: { "Content-Type": "application/json", "Cache-Control": "no-cache" },
             data: JSON.stringify(payload),
-            timeout: 35000,
+            timeout: 40000, // Pro 模型联网搜索较慢，延长到 40 秒
             onload: (response) => {
                 try {
                     const data = JSON.parse(response.responseText);
                     if (response.status === 200) {
                         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                        showResult("Audit Result", text || "Blocked by safety filters.", false, selectedText);
+                        showResult("Audit Result", text || "Empty response.", false, selectedText);
                     } else {
-                        showResult("API Error", `Code ${response.status}`, false, selectedText);
+                        showResult("Error", `Code ${response.status}: ${data.error?.message}`, false, selectedText);
                     }
-                } catch (e) { showResult("Parse Error", "Invalid data.", false, selectedText); }
+                } catch (e) { showResult("Parse Error", "Failed to read API response.", false, selectedText); }
             },
-            onerror: () => showResult("Network Error", "Check your connection.", false, selectedText),
-            ontimeout: () => showResult("Timeout", "Took too long.", false, selectedText)
+            onerror: () => showResult("Network Error", "Connection failed.", false, selectedText),
+            ontimeout: () => showResult("Timeout", "Took too long. Try disabling Search Grounding.", false, selectedText)
         });
     }
 
