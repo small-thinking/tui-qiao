@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tui-Qiao (推敲) - Truth Seeker (Gemini 3 Edition)
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  A selection-based auditing tool to find "First Principles" powered by Gemini 3.
 // @author       small-thinking
 // @match        *://*/*
@@ -16,9 +16,7 @@
 
     // --- 初始化设置与强制迁移 ---
     const DEFAULT_MODEL = "gemini-3-flash-preview";
-    
     let currentModel = GM_getValue("model");
-    // 强制迁移逻辑：如果检测到旧的 1.5 模型 ID，自动升级到 3.0
     if (!currentModel || currentModel.includes("1.5-flash")) {
         currentModel = DEFAULT_MODEL;
         GM_setValue("model", DEFAULT_MODEL);
@@ -38,28 +36,24 @@
     const STYLES = `
         :host { --primary: #2563eb; --bg: #ffffff; --text: #1f2937; --border: #e5e7eb; }
         .panel {
-            position: fixed; top: 20px; right: 20px; width: 420px; max-height: 85vh;
-            background: var(--bg); border: 1px solid var(--border); border-radius: 16px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); z-index: 2147483647;
+            position: fixed; top: 20px; right: 20px; width: 400px; max-height: 85vh;
+            background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); z-index: 2147483647;
             display: flex; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica;
-            overflow: hidden; animation: slideIn 0.2s ease-out; border: 1px solid rgba(0,0,0,0.05);
+            overflow: hidden; animation: slideIn 0.2s ease-out;
         }
         @keyframes slideIn { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .header { padding: 14px 20px; background: #fff; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-        .header-title { font-weight: 800; font-size: 15px; color: #111827; display: flex; align-items: center; gap: 8px; }
-        .content { padding: 20px; overflow-y: auto; font-size: 14px; line-height: 1.6; color: #374151; background: #fff; }
-        .loading-spinner { border: 2px solid #f3f3f3; border-top: 2px solid var(--primary); border-radius: 50%; width: 18px; height: 18px; animation: spin 1s linear infinite; display: inline-block; }
+        .header { padding: 12px 16px; background: #f8fafc; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .header-title { font-weight: 700; font-size: 14px; color: #111827; display: flex; align-items: center; gap: 6px; }
+        .content { padding: 16px; overflow-y: auto; font-size: 14px; line-height: 1.6; color: #374151; background: #fff; }
+        .loading-spinner { border: 2px solid #f3f3f3; border-top: 2px solid var(--primary); border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .audit-card { background: #f8fafc; padding: 14px; border-radius: 12px; margin-bottom: 12px; border: 1px solid #f1f5f9; }
-        .card-label { font-weight: 800; font-size: 12px; color: var(--primary); text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.05em; display: block; }
-        .card-body { color: #1e293b; font-size: 14px; }
-        .icon-btn { cursor: pointer; color: #9ca3af; transition: all 0.2s; font-size: 18px; display: flex; align-items: center; }
-        .icon-btn:hover { color: var(--primary); transform: scale(1.1); }
-        .config-view { display: flex; flex-direction: column; gap: 16px; }
-        .field label { font-size: 12px; font-weight: 700; color: #4b5563; display: block; margin-bottom: 6px; }
-        .field input, .field select { width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; background: #f9fafb; }
-        .save-btn { background: #111827; color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: 700; transition: opacity 0.2s; }
-        .save-btn:hover { opacity: 0.9; }
+        .icon-btn { cursor: pointer; color: #9ca3af; transition: color 0.2s; font-size: 16px; }
+        .icon-btn:hover { color: var(--primary); }
+        .config-view { display: flex; flex-direction: column; gap: 12px; }
+        .field label { font-size: 12px; font-weight: 600; color: #4b5563; }
+        .field input, .field select { padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; width: 100%; box-sizing: border-box; }
+        .save-btn { background: #111827; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: 600; }
     `;
 
     function ensurePanel() {
@@ -80,8 +74,8 @@
         return `
             <div class="header">
                 <div class="header-title"><span>🔍</span> ${title}</div>
-                <div style="display:flex; gap:14px;">
-                    <div class="icon-btn settings-trigger" title="Settings">⚙️</div>
+                <div style="display:flex; gap:10px;">
+                    <div class="icon-btn settings-trigger">⚙️</div>
                     <div class="icon-btn" id="close-auditor">✕</div>
                 </div>
             </div>
@@ -98,17 +92,16 @@
                 <div class="config-view">
                     <div class="field">
                         <label>Gemini API Key</label>
-                        <input type="password" id="api-key-input" value="${settings.apiKey}" placeholder="Paste your API Key">
+                        <input type="password" id="api-key-input" value="${settings.apiKey}" placeholder="Paste API Key">
                     </div>
                     <div class="field">
-                        <label>推理引擎 / Engine</label>
+                        <label>Engine</label>
                         <select id="model-select">
-                            <option value="gemini-3-flash-preview" ${settings.model === 'gemini-3-flash-preview' ? 'selected' : ''}>Gemini 3 Flash (最新版/推荐)</option>
+                            <option value="gemini-3-flash-preview" ${settings.model === 'gemini-3-flash-preview' ? 'selected' : ''}>Gemini 3 Flash</option>
                             <option value="gemini-2.0-flash" ${settings.model === 'gemini-2.0-flash' ? 'selected' : ''}>Gemini 2.0 Flash</option>
-                            <option value="gemini-2.0-pro-exp-02-05" ${settings.model === 'gemini-2.0-pro-exp-02-05' ? 'selected' : ''}>Gemini 2.0 Pro</option>
                         </select>
                     </div>
-                    <button class="save-btn" id="save-config">保存并应用</button>
+                    <button class="save-btn" id="save-config">保存应用</button>
                 </div>
             </div>
         `;
@@ -120,7 +113,7 @@
             settings.apiKey = newKey;
             settings.model = newModel;
             isConfiguring = false;
-            showResult("设置已保存", "引擎配置成功！划选文字开始“推敲”。");
+            showResult("Success", "设置已保存。");
         };
         bindBasicEvents();
     }
@@ -137,38 +130,23 @@
         resultPanel.innerHTML = `
             ${renderHeader(title)}
             <div class="content">
-                ${isLoading ? `<div style="text-align:center; padding: 20px;"><span class="loading-spinner"></span><br><br><span style="font-size:12px; color:#6b7280;">Gemini 3 正在推敲中...</span></div>` : formatResponse(content)}
+                ${isLoading ? `<div style="text-align:center; padding: 10px;"><span class="loading-spinner"></span> 推敲中...</div>` : `<div style="white-space:pre-wrap;">${content}</div>`}
             </div>
         `;
         bindBasicEvents();
-    }
-
-    function formatResponse(text) {
-        if (!text) return "未能获取结果，请检查 API Key。";
-        const sections = text.split('\n\n');
-        return sections.map(s => {
-            if (s.includes('：') || s.includes(':')) {
-                const parts = s.split(/[:：]/);
-                const label = parts[0].replace(/[#*]/g, '').trim();
-                const body = parts.slice(1).join(':').trim();
-                if (label.length < 15) {
-                    return `<div class="audit-card"><span class="card-label">${label}</span><div class="card-body">${body}</div></div>`;
-                }
-            }
-            return `<p>${s.replace(/\n/g, '<br>')}</p>`;
-        }).join('');
     }
 
     async function callGemini(selectedText) {
         if (!settings.apiKey) { showConfig(); return; }
         showResult("正在审计...", "", true);
 
-        const systemPrompt = `你是一个说话直白、拥有 Gemini 3 极致推理能力的逻辑审计师。你的目标是“求真”，帮普通人瞬间看穿任何言论、主张或热点背后的真相。
-禁止使用专业术语，禁止废话。请像在给最好的哥们拆解内幕一样输出：
-1. 到底在说什么：(一句话扒掉马甲，说出本质意图)
-2. 他在忽悠什么：(直指那些逻辑漏洞、夸大其词或偷换概念的地方)
-3. 谁在赚你的钱：(洞察这条信息火了之后，背后的利益链条是谁)
-4. 大白话真相：(用第一性原理重构这件事的真实商业或逻辑常识)`;
+        const systemPrompt = `你是一个冷静、客观、追求事实真相的逻辑审计师。
+你的任务是评估所提供言论的客观性和逻辑置信度。
+要求：
+1. 立场中立：如果对方逻辑严密、置信度高，请直接给予肯定；如果有明显漏洞或利益导向，请指出。
+2. 平实语言：禁止使用浮夸或学术化的术语，像专业同事一样对话。
+3. 极致精炼：总回复字数控制在5句话以内。
+4. 结构：直接陈述核心本质、逻辑置信度评估、以及最重要的一个疑点（如有）。`;
 
         const payload = {
             contents: [{ parts: [{ text: selectedText }] }],
@@ -187,15 +165,15 @@
                     const data = JSON.parse(response.responseText);
                     if (response.status === 200) {
                         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                        showResult("Tui-Qiao Audit (Gemini 3)", text);
+                        showResult("推敲结果", text);
                     } else {
-                        showResult("出错啦", `错误码 ${response.status}: ${data.error?.message || 'API 报错'}`);
+                        showResult("Error", `API Error ${response.status}`);
                     }
                 } catch (e) {
-                    showResult("解析失败", "返回数据格式不对，请检查 API Key。");
+                    showResult("Parsing Error", "数据格式解析失败。");
                 }
             },
-            onerror: () => showResult("网络错误", "无法连接 Google 节点，请检查梯子。")
+            onerror: () => showResult("Network Error", "连接失败。")
         });
     }
 
@@ -205,7 +183,7 @@
         if (!floatingBtn) {
             floatingBtn = document.createElement('div');
             floatingBtn.innerHTML = '🔍';
-            floatingBtn.style = `position: fixed; cursor: pointer; font-size: 18px; z-index: 2147483646; background: white; border: 1px solid #2563eb; border-radius: 8px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); transition: transform 0.1s;`;
+            floatingBtn.style = `position: fixed; cursor: pointer; font-size: 18px; z-index: 2147483646; background: white; border: 1px solid #2563eb; border-radius: 8px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15);`;
             floatingBtn.onclick = (ev) => { ev.stopPropagation(); callGemini(selection); floatingBtn.style.display = 'none'; };
             document.body.appendChild(floatingBtn);
         }
