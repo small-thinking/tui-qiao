@@ -2,6 +2,8 @@
 
 **Truth Seeking through Logical Rigor.**
 
+[中文说明 (README_ZH.md)](./README_ZH.md)
+
 Tui-Qiao (推敲) is a minimalist, selection-based auditing tool designed to help you deconstruct claims, identify hidden assumptions, and uncover the first principles behind any message.
 
 In an era of information overload and "vibes-based" decision making, Tui-Qiao acts as a cognitive filter, stripping away emotional adjectives to find the underlying logic (or lack thereof).
