@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Tui-Qiao (推敲) - Truth Seeker
+// @name         Tui-Qiao (推敲) - Truth Seeker (Gemini 3 Edition)
 // @namespace    http://tampermonkey.net/
-// @version      0.8
-// @description  A selection-based auditing tool to find "First Principles" within any text.
+// @version      0.9
+// @description  A selection-based auditing tool to find "First Principles" powered by Gemini 3.
 // @author       small-thinking
 // @match        *://*/*
 // @grant        GM_xmlhttpRequest
@@ -17,7 +17,7 @@
     // --- 初始化设置 ---
     const DEFAULT_SETTINGS = {
         apiKey: "",
-        model: "gemini-2.0-flash", 
+        model: "gemini-3-flash-preview", 
     };
 
     let settings = {
@@ -97,11 +97,10 @@
                         <input type="password" id="api-key-input" value="${settings.apiKey}" placeholder="Paste your API Key">
                     </div>
                     <div class="field">
-                        <label>推理模型 / Model</label>
+                        <label>推理引擎 / Engine</label>
                         <select id="model-select">
-                            <option value="gemini-2.0-flash" ${settings.model === 'gemini-2.0-flash' ? 'selected' : ''}>Gemini 2.0 Flash (推荐)</option>
-                            <option value="gemini-2.0-pro-exp-02-05" ${settings.model === 'gemini-2.0-pro-exp-02-05' ? 'selected' : ''}>Gemini 2.0 Pro (最强推理)</option>
-                            <option value="gemini-1.5-flash-latest" ${settings.model.includes('1.5-flash') ? 'selected' : ''}>Gemini 1.5 Flash</option>
+                            <option value="gemini-3-flash-preview" ${settings.model === 'gemini-3-flash-preview' ? 'selected' : ''}>Gemini 3 Flash (最新版/推荐)</option>
+                            <option value="gemini-2.0-flash" ${settings.model === 'gemini-2.0-flash' ? 'selected' : ''}>Gemini 2.0 Flash</option>
                             <option value="gemini-1.5-pro-latest" ${settings.model.includes('1.5-pro') ? 'selected' : ''}>Gemini 1.5 Pro</option>
                         </select>
                     </div>
@@ -117,7 +116,7 @@
             settings.apiKey = newKey;
             settings.model = newModel;
             isConfiguring = false;
-            showResult("设置已保存", "配置成功！现在划选文字即可开始“推敲”。");
+            showResult("设置已保存", "引擎已升级。现在划选文字开始“推敲”。");
         };
         bindBasicEvents();
     }
@@ -134,14 +133,14 @@
         resultPanel.innerHTML = `
             ${renderHeader(title)}
             <div class="content">
-                ${isLoading ? `<div style="text-align:center; padding: 20px;"><span class="loading-spinner"></span><br><br><span style="font-size:12px; color:#6b7280;">正在推敲中...</span></div>` : formatResponse(content)}
+                ${isLoading ? `<div style="text-align:center; padding: 20px;"><span class="loading-spinner"></span><br><br><span style="font-size:12px; color:#6b7280;">Gemini 3 正在穿透迷雾...</span></div>` : formatResponse(content)}
             </div>
         `;
         bindBasicEvents();
     }
 
     function formatResponse(text) {
-        if (!text) return "未能获取结果，请检查 API Key 或网络。";
+        if (!text) return "未能获取结果，请检查 API Key。";
         const sections = text.split('\n\n');
         return sections.map(s => {
             if (s.includes('：') || s.includes(':')) {
@@ -158,21 +157,22 @@
 
     async function callGemini(selectedText) {
         if (!settings.apiKey) { showConfig(); return; }
-        showResult("推敲中...", "", true);
+        showResult("正在推敲...", "", true);
 
-        const systemPrompt = `你是一个说话直白、专门讲“大白话”的逻辑审计师。你的任务是帮普通人看穿言论背后的真相。
-请按以下格式输出，禁止使用专业术语，要像在咖啡馆聊天一样直白：
-1. 到底在说什么：(一句话总结对方的本质意图)
-2. 他在忽悠什么：(拆穿那些虚头巴脑的逻辑或夸大的词)
-3. 谁在赚你的钱：(分析这条信息火了对谁有好处)
-4. 大白话真相：(用第一性原理说出这件事的真实逻辑)`;
+        // 为 Gemini 3 优化的“大白话”审计 Prompt
+        const systemPrompt = `你是一个说话直白、拥有 Gemini 3 极致推理能力的逻辑审计师。你的目标是“求真”，帮普通人瞬间看穿任何言论、主张或热点背后的真相。
+禁止使用专业术语，禁止废话。请像在给最好的哥们拆解内幕一样输出：
+1. 到底在说什么：(一句话扒掉马甲，说出本质意图)
+2. 他在忽悠什么：(直指那些逻辑漏洞、夸大其词或偷换概念的地方)
+3. 谁在赚你的钱：(洞察这条信息火了之后，背后的利益链条是谁)
+4. 大白话真相：(用第一性原理重构这件事的真实商业或逻辑常识)`;
 
         const payload = {
             contents: [{ parts: [{ text: selectedText }] }],
             systemInstruction: { parts: [{ text: systemPrompt }] }
         };
 
-        // 统一使用 v1beta 接口
+        // 统一使用 v1beta 以支持最新预览版模型
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}`;
 
         GM_xmlhttpRequest({
@@ -185,15 +185,15 @@
                     const data = JSON.parse(response.responseText);
                     if (response.status === 200) {
                         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                        showResult("推敲审计报告", text);
+                        showResult("Tui-Qiao Audit (Gemini 3)", text);
                     } else {
-                        showResult("出错啦", `错误码 ${response.status}: ${data.error?.message || 'API 拒绝了请求'}`);
+                        showResult("出错啦", `错误码 ${response.status}: ${data.error?.message || 'API 报错'}`);
                     }
                 } catch (e) {
                     showResult("解析失败", "返回数据格式不对，请检查 API Key。");
                 }
             },
-            onerror: () => showResult("网络错误", "无法连接到 Google 节点，请检查梯子。")
+            onerror: () => showResult("网络错误", "无法连接 Google 节点，请检查梯子。")
         });
     }
 
