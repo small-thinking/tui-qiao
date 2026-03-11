@@ -35,7 +35,7 @@
     const STYLES = `
         :host { --primary: #2563eb; --bg: #ffffff; --text: #1f2937; --border: #e5e7eb; }
         .panel {
-            position: fixed; top: 20px; right: 20px; width: 400px; max-height: 85vh;
+            position: fixed; top: 20px; right: 20px; width: 420px; max-height: 85vh;
             background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); z-index: 2147483647;
             display: none; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica;
@@ -117,7 +117,7 @@
                             <option value="gemini-1.5-flash-latest" ${settings.model === 'gemini-1.5-flash-latest' ? 'selected' : ''}>Gemini 1.5 Flash</option>
                         </select>
                     </div>
-                    <div class="field" style="display:flex; align-items:center; gap:8px;">
+                    <div class="field" style="flex-direction:row; align-items:center; gap:8px;">
                         <input type="checkbox" id="search-toggle" ${settings.useSearch ? 'checked' : ''} style="width:auto;">
                         <label for="search-toggle">Search Grounding</label>
                     </div>
@@ -169,19 +169,27 @@
         isConfiguring = false;
         showResult("Auditing...", "", true, selectedText);
 
-        const systemPrompt = `You are a calm, objective logic auditor. Your mission is TRUTH SEEKING.
-**REPLY LANGUAGE MUST MATCH THE INPUT TEXT LANGUAGE.**
-Rules:
-1. ABSOLUTE ANONYMITY: Treat the text as anonymous. Even if you identify the original author via search, NEVER mention their name or identity unless it is explicitly written in the provided text. Focus purely on the content.
-2. OVERALL JUDGMENT FIRST: Start with a verdict:
-   - ✅: Claims are verified true or logically solid.
-   - ❌: Claims are proven false, officially denied, or contains major fallacies.
-   - ⚠️: Claims are contradictory or partially misleading.
-   - ❓: Truly unverified after exhaustive search.
-3. SYNTHESIS: Provide a cohesive narrative (max 4 sentences) synthesizing your evidence.
-4. SCOPE: Ignore purely emotional narratives. Only audit specific claims (project status, business rumors, technical points).
-5. CONCISENESS: Maximum 5 sentences total.
-6. REFERENCES: Provide up to 3 evidence links at the bottom.`;
+        const systemPrompt = `You are a rigorous logic auditor for Truth Seeking. 
+**REPLY LANGUAGE MUST MATCH INPUT TEXT LANGUAGE.**
+Classify and handle the input text into one of these 3 cases:
+
+CASE 1: Subjective/Personal Narrative
+- Examples: Career announcements, farewell posts, purely subjective feelings, gratitude.
+- Action: DO NOT audit. Reply: "Personal narrative. Outside of audit scope."
+
+CASE 2: News or Rumors
+- Examples: Claims about business deals, project status, product delays, industry rumors.
+- Action: MUST search for evidence to prove or disprove. Provide a holistic verdict (✅/❌/⚠️).
+
+CASE 3: Opinions or Arguments
+- Examples: Technical theories, economic claims, logical deductions.
+- Action: Search if necessary, or rely on First Principle reasoning. Critique the internal logic and validity.
+
+General Rules:
+1. ABSOLUTE ANONYMITY: Never mention or guess author identities.
+2. VERDICT FIRST: First sentence must be an overall judgment with an emoji (✅, ❌, ⚠️, or ❓).
+3. SYNTHESIS: Cohesive narrative (max 4 sentences). No bullet points.
+4. EVIDENCE: Provide up to 3 links at bottom if Case 2 or 3.`;
 
         const payload = {
             contents: [{ 
@@ -204,22 +212,14 @@ Rules:
                     const data = JSON.parse(response.responseText);
                     if (response.status === 200) {
                         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                        if (!text) {
-                            showResult("Blocked", "API returned an empty response. This might be due to safety filters.", false, selectedText);
-                        } else {
-                            showResult("Audit Result", text, false, selectedText);
-                        }
-                    } else if (response.status === 429) {
-                        showResult("Limit Reached", "Account quota or rate limit exceeded.", false, selectedText);
+                        showResult("Audit Result", text || "Blocked by safety filters.", false, selectedText);
                     } else {
-                        showResult("API Error", `Code ${response.status}: ${data.error?.message || 'Unknown error'}`, false, selectedText);
+                        showResult("API Error", `Code ${response.status}`, false, selectedText);
                     }
-                } catch (e) { 
-                    showResult("Parse Error", `Failed to read API response.`, false, selectedText); 
-                }
+                } catch (e) { showResult("Parse Error", "Invalid data.", false, selectedText); }
             },
-            onerror: (err) => showResult("Network Error", `Connection failed.`, false, selectedText),
-            ontimeout: () => showResult("Timeout", "The audit took too long (35s+).", false, selectedText)
+            onerror: () => showResult("Network Error", "Check your connection.", false, selectedText),
+            ontimeout: () => showResult("Timeout", "Took too long.", false, selectedText)
         });
     }
 
