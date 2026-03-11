@@ -45,11 +45,13 @@
         @keyframes slideIn { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .header { padding: 12px 16px; background: #f8fafc; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
         .header-title { font-weight: 700; font-size: 14px; color: #111827; display: flex; align-items: center; gap: 6px; }
-        .content { padding: 16px; overflow-y: auto; font-size: 14px; line-height: 1.6; color: #374151; background: #fff; min-height: 60px; }
+        .content { padding: 16px; overflow-y: auto; font-size: 14px; line-height: 1.6; color: #374151; background: #fff; }
         .loading-spinner { border: 2px solid #f3f3f3; border-top: 2px solid var(--primary); border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .icon-btn { cursor: pointer; color: #9ca3af; transition: color 0.2s; font-size: 16px; }
         .icon-btn:hover { color: var(--primary); }
+        a { color: var(--primary); text-decoration: none; }
+        a:hover { text-decoration: underline; }
         .config-view { display: flex; flex-direction: column; gap: 12px; }
         .field label { font-size: 12px; font-weight: 600; color: #4b5563; }
         .field input, .field select { padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; width: 100%; box-sizing: border-box; }
@@ -128,11 +130,17 @@
             resultPanel.innerHTML = `
                 ${renderHeader(title)}
                 <div class="content">
-                    ${isLoading ? `<div style="text-align:center; padding: 10px;"><span class="loading-spinner"></span> 推敲中...</div>` : `<div style="white-space:pre-wrap;">${content}</div>`}
+                    ${isLoading ? `<div style="text-align:center; padding: 10px;"><span class="loading-spinner"></span> 推敲中...</div>` : `<div style="white-space:pre-wrap;">${formatLinks(content)}</div>`}
                 </div>
             `;
             bindBasicEvents();
         }
+    }
+
+    function formatLinks(text) {
+        // 简单的正则表达式，将 URL 转换为 HTML 链接
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        return text.replace(urlRegex, (url) => `<a href="${url}" target="_blank">${url}</a>`);
     }
 
     async function callGemini(selectedText) {
@@ -141,16 +149,18 @@
         showResult("正在审计...", "", true);
 
         const systemPrompt = `你是一个冷静、客观的逻辑审计师。你的任务是评估言论的逻辑置信度。
-**回复语言必须与用户选中的文本语言保持一致（如果是中文则用中文回复，如果是英文则用英文回复）。**
+回复语言必须与用户选中文字的语言保持一致。
 规则：
-1. 识别性质：只审计包含逻辑、事实或技术分析的内容。对于纯个人感受或主观审美（如“我很高兴”），请直接回复表示不予评价。
-2. 立场中立：逻辑严密则客观肯定，有明显漏洞则平实指出。
-3. 极致精炼：总回复严禁超过5句话。
-4. 语言平实：像专业同事沟通一样，直白且直接。`;
+1. 识别性质：只审计逻辑、事实或技术分析。对纯主观感受不予评价。
+2. 客观探究：如果逻辑严密、置信度高，请客观肯定。
+3. 证据支持：你可以使用内置的搜索能力核实事实。如果判定为谬误或事实，请务必在回复末尾提供最多3个证据链接。
+4. 极致精炼：正文控制在5句话以内。
+5. 语言平实：直白陈述本质。`;
 
         const payload = {
             contents: [{ parts: [{ text: selectedText }] }],
-            systemInstruction: { parts: [{ text: systemPrompt }] }
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            tools: [{ google_search_retrieval: {} }] // 显式开启联网搜索功能
         };
 
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}`;
@@ -160,23 +170,23 @@
             url: url,
             headers: { "Content-Type": "application/json" },
             data: JSON.stringify(payload),
-            timeout: 15000,
+            timeout: 20000, // 联网搜索可能较慢，稍微增加超时
             onload: (response) => {
                 if (isConfiguring) return;
                 try {
                     const data = JSON.parse(response.responseText);
                     if (response.status === 200) {
                         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                        showResult("推敲结果", text || "No response content.");
+                        showResult("推敲结果", text || "无回复。");
                     } else {
-                        showResult("出错啦", `API Error ${response.status}`);
+                        showResult("Error", `API Error ${response.status}`);
                     }
                 } catch (e) {
-                    showResult("Parsing Error", "解析数据失败。");
+                    showResult("Parsing Error", "解析失败。");
                 }
             },
             onerror: () => showResult("Network Error", "连接失败。"),
-            ontimeout: () => showResult("Timeout", "请求超时。")
+            ontimeout: () => showResult("Timeout", "联网推敲超时。")
         });
     }
 
