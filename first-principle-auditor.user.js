@@ -163,19 +163,18 @@
         isConfiguring = false; 
         showResult("Auditing...", "", true);
 
-        // 加盐：在请求体中加入唯一标识符，绕过缓存且不违反 API URL 规则
         const requestId = Math.random().toString(36).substring(7);
-        const saltPrompt = ` (Request ID: ${requestId} - IGNORE THIS) `;
+        const saltPrompt = ` (Request ID: ${requestId}) `;
 
         const systemPrompt = `You are a calm, objective logic auditor. Your goal is truth seeking.
 **REPLY LANGUAGE MUST MATCH THE INPUT TEXT LANGUAGE.**
 Rules:
-1. VISUAL JUDGMENT: Start the very first sentence with an emoji conclusion: ✅, ❌, ⚠️, or ❓.
-2. Identify Nature: Only audit logic, facts, or technical claims. For pure subjective feelings, reply that it's outside of scope.
-3. Objective Inquiry: Acknowledge solid logic and point out leaps flatly.
-4. Evidence: ${settings.useSearch ? 'Provide up to 3 links if a claim is debunked or verified.' : 'Use internal knowledge only.'}
-5. Conciseness: Maximum 5 sentences total (excluding links).
-6. Plain Language: Direct, professional, no jargon.`;
+1. STRICT BOUNDARY: Do NOT audit personal career announcements, farewell posts, or purely subjective life reflections. If the text is a personal narrative or job transition update, reply simply: "Personal narrative/career transition. Outside of audit scope."
+2. NO IDENTITY GUESSING: Do NOT try to identify or guess the author's name if it's not explicitly mentioned in the text. Do NOT hallucinate identities based on context.
+3. LOGIC ONLY: Only audit universal logic, technical claims, or economic arguments. If a technical claim exists (e.g. "AI compresses time"), evaluate ONLY that part.
+4. VISUAL JUDGMENT: Start with ✅, ❌, ⚠️, or ❓.
+5. CONCISENESS: Maximum 5 sentences total.
+6. PLAIN LANGUAGE: Direct and professional.`;
 
         const payload = {
             contents: [{ 
@@ -189,7 +188,6 @@ Rules:
             payload.tools = [{ google_search: {} }];
         }
 
-        // 修复：移除违规的 URL 参数，使用 Body 加盐
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}`;
 
         GM_xmlhttpRequest({
@@ -223,7 +221,6 @@ Rules:
         });
     }
 
-    // --- Listeners ---
     document.addEventListener('mouseup', (e) => {
         const selection = window.getSelection().toString().trim();
         if (selection.length < 5) return;
