@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tui-Qiao (推敲) - Truth Seeker (Gemini 3 Edition)
 // @namespace    http://tampermonkey.net/
-// @version      1.3
+// @version      1.4
 // @description  A selection-based auditing tool to find "First Principles" powered by Gemini 3.
 // @author       small-thinking
 // @match        *://*/*
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    // --- 初始化设置与强制迁移 ---
+    // --- 初始化设置 ---
     const DEFAULT_MODEL = "gemini-3-flash-preview";
     let currentModel = GM_getValue("model");
     if (!currentModel || currentModel.includes("1.5-flash")) {
@@ -25,7 +25,7 @@
     let settings = {
         apiKey: GM_getValue("apiKey", ""),
         model: currentModel,
-        language: GM_getValue("language", "auto") // 默认自动判断
+        language: GM_getValue("language", "auto")
     };
 
     // --- UI 状态 ---
@@ -40,13 +40,13 @@
             position: fixed; top: 20px; right: 20px; width: 400px; max-height: 85vh;
             background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); z-index: 2147483647;
-            display: flex; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica;
+            display: none; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica;
             overflow: hidden; animation: slideIn 0.2s ease-out;
         }
         @keyframes slideIn { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .header { padding: 12px 16px; background: #f8fafc; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
         .header-title { font-weight: 700; font-size: 14px; color: #111827; display: flex; align-items: center; gap: 6px; }
-        .content { padding: 16px; overflow-y: auto; font-size: 14px; line-height: 1.6; color: #374151; background: #fff; }
+        .content { padding: 16px; overflow-y: auto; font-size: 14px; line-height: 1.6; color: #374151; background: #fff; min-height: 60px; }
         .loading-spinner { border: 2px solid #f3f3f3; border-top: 2px solid var(--primary); border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .icon-btn { cursor: pointer; color: #9ca3af; transition: color 0.2s; font-size: 16px; }
@@ -103,10 +103,10 @@
                         </select>
                     </div>
                     <div class="field">
-                        <label>Language / 回复语言</label>
+                        <label>Language</label>
                         <select id="lang-select">
-                            <option value="auto" ${settings.language === 'auto' ? 'selected' : ''}>Auto (Follow Text)</option>
-                            <option value="zh" ${settings.language === 'zh' ? 'selected' : ''}>Chinese (中文)</option>
+                            <option value="auto" ${settings.language === 'auto' ? 'selected' : ''}>Auto</option>
+                            <option value="zh" ${settings.language === 'zh' ? 'selected' : ''}>Chinese</option>
                             <option value="en" ${settings.language === 'en' ? 'selected' : ''}>English</option>
                         </select>
                     </div>
@@ -115,15 +115,12 @@
             </div>
         `;
         shadowRoot.getElementById('save-config').onclick = () => {
-            const newKey = shadowRoot.getElementById('api-key-input').value;
-            const newModel = shadowRoot.getElementById('model-select').value;
-            const newLang = shadowRoot.getElementById('lang-select').value;
-            GM_setValue("apiKey", newKey);
-            GM_setValue("model", newModel);
-            GM_setValue("language", newLang);
-            settings.apiKey = newKey;
-            settings.model = newModel;
-            settings.language = newLang;
+            settings.apiKey = shadowRoot.getElementById('api-key-input').value;
+            settings.model = shadowRoot.getElementById('model-select').value;
+            settings.language = shadowRoot.getElementById('lang-select').value;
+            GM_setValue("apiKey", settings.apiKey);
+            GM_setValue("model", settings.model);
+            GM_setValue("language", settings.language);
             isConfiguring = false;
             showResult("Success", "设置已保存。");
         };
@@ -138,32 +135,37 @@
     function showResult(title, content, isLoading = false) {
         ensurePanel();
         resultPanel.style.display = 'flex';
-        if (isConfiguring && !isLoading) return;
-        resultPanel.innerHTML = `
-            ${renderHeader(title)}
-            <div class="content">
-                ${isLoading ? `<div style="text-align:center; padding: 10px;"><span class="loading-spinner"></span> 推敲中...</div>` : `<div style="white-space:pre-wrap;">${content}</div>`}
-            </div>
-        `;
-        bindBasicEvents();
+        // 如果不是在配置中，或者强制进入加载状态，则更新内容
+        if (isLoading || !isConfiguring) {
+            resultPanel.innerHTML = `
+                ${renderHeader(title)}
+                <div class="content">
+                    ${isLoading ? `<div style="text-align:center; padding: 10px;"><span class="loading-spinner"></span> 推敲中...</div>` : `<div style="white-space:pre-wrap;">${content}</div>`}
+                </div>
+            `;
+            bindBasicEvents();
+        }
     }
 
     async function callGemini(selectedText) {
         if (!settings.apiKey) { showConfig(); return; }
+        
+        // 关键：每次调用前彻底重置配置状态
+        isConfiguring = false; 
         showResult("正在审计...", "", true);
 
         let langInstruction = "";
         if (settings.language === "zh") langInstruction = "请务必使用中文回复。";
         else if (settings.language === "en") langInstruction = "Please reply in English.";
-        else langInstruction = "请根据输入文本的语言决定回复语言（中文或英文）。";
+        else langInstruction = "请根据输入文本的语言决定回复语言。";
 
         const systemPrompt = `你是一个冷静、客观的逻辑审计师。你的任务是评估言论的逻辑置信度。
 ${langInstruction}
 规则：
-1. 识别性质：只审计逻辑推论、事实主张或技术分析。对于纯主观感受（如“我很开心”），请直接回复：“属于个人主观感受，不在审计范围内。”
+1. 识别性质：只审计逻辑推论、事实主张或技术分析。对于纯主观感受，请直接回复：“属于个人主观感受，不在审计范围内。”
 2. 立场中立：逻辑严密则肯定，有漏洞则指出。
 3. 极致精炼：总回复控制在5句话以内。
-4. 语言平实：禁止术语堆砌，直白陈述本质。`;
+4. 语言平实：直白陈述本质。`;
 
         const payload = {
             contents: [{ parts: [{ text: selectedText }] }],
@@ -177,20 +179,23 @@ ${langInstruction}
             url: url,
             headers: { "Content-Type": "application/json" },
             data: JSON.stringify(payload),
+            timeout: 15000, // 15秒超时
             onload: (response) => {
+                if (isConfiguring) return; // 如果用户在请求期间打开了设置，则不覆盖设置界面
                 try {
                     const data = JSON.parse(response.responseText);
                     if (response.status === 200) {
                         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                        showResult("推敲结果", text);
+                        showResult("推敲结果", text || "无回复内容。");
                     } else {
-                        showResult("Error", `API Error ${response.status}`);
+                        showResult("出错啦", `API Error ${response.status}: ${data.error?.message || '未知错误'}`);
                     }
                 } catch (e) {
-                    showResult("Parsing Error", "数据解析失败。");
+                    showResult("解析失败", "返回数据无法解析。");
                 }
             },
-            onerror: () => showResult("Network Error", "连接失败。")
+            onerror: () => showResult("网络错误", "无法连接 Google 节点。"),
+            ontimeout: () => showResult("请求超时", "请检查网络环境或 API Key。")
         });
     }
 
