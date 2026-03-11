@@ -38,7 +38,7 @@
             position: fixed; top: 20px; right: 20px; width: 400px; max-height: 85vh;
             background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); z-index: 2147483647;
-            display: flex; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica;
+            display: none; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica;
             overflow: hidden; animation: slideIn 0.2s ease-out;
         }
         @keyframes slideIn { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
@@ -166,7 +166,6 @@
     async function callGemini(selectedText) {
         if (!settings.apiKey) { showConfig(); return; }
         
-        // 核心修复：物理重置所有变量和 UI
         resetPanel(); 
         isConfiguring = false;
         showResult("Auditing...", "", true, selectedText);
@@ -174,15 +173,16 @@
         const systemPrompt = `You are a calm, objective logic auditor. Your goal is truth seeking.
 **REPLY LANGUAGE MUST MATCH THE INPUT TEXT LANGUAGE.**
 Rules:
-1. STRICT BOUNDARY: Do NOT audit personal career announcements, farewell posts, or subjective narratives. Reply: "Personal narrative. Outside of audit scope."
-2. LOGIC ONLY: Only audit universal logic, technical claims, or economic arguments.
-3. VISUAL JUDGMENT: Start with ✅, ❌, ⚠️, or ❓.
-4. CONCISENESS: Maximum 5 sentences total.`;
+1. FOCUS ON CLAIMS: Audit logical inferences, facts, or technical/business rumors. 
+2. DISTINGUISH NARRATIVES: Do NOT audit purely emotional life reflections or "farewell/gratitude" posts. HOWEVER, if a post contains specific claims about project status, performance, or industry rumors (even in a career context), you MUST audit those specific claims.
+3. LOGIC ONLY: Acknowledge solid logic and point out leaps flatly.
+4. VISUAL JUDGMENT: Start with ✅, ❌, ⚠️, or ❓.
+5. CONCISENESS: Maximum 5 sentences total.`;
 
         const payload = {
             contents: [{ 
                 role: "user",
-                parts: [{ text: selectedText + ` [Request ID: ${Math.random().toString(36).substring(7)}]` }] 
+                parts: [{ text: selectedText + ` [ID: ${Math.random().toString(36).substring(7)}]` }] 
             }],
             systemInstruction: { parts: [{ text: systemPrompt }] }
         };
