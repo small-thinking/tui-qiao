@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tui-Qiao (推敲) - Truth Seeker (Gemini 3 Edition)
 // @namespace    http://tampermonkey.net/
-// @version      0.9
+// @version      1.0
 // @description  A selection-based auditing tool to find "First Principles" powered by Gemini 3.
 // @author       small-thinking
 // @match        *://*/*
@@ -14,15 +14,19 @@
 (function() {
     'use strict';
 
-    // --- 初始化设置 ---
-    const DEFAULT_SETTINGS = {
-        apiKey: "",
-        model: "gemini-3-flash-preview", 
-    };
+    // --- 初始化设置与强制迁移 ---
+    const DEFAULT_MODEL = "gemini-3-flash-preview";
+    
+    let currentModel = GM_getValue("model");
+    // 强制迁移逻辑：如果检测到旧的 1.5 模型 ID，自动升级到 3.0
+    if (!currentModel || currentModel.includes("1.5-flash")) {
+        currentModel = DEFAULT_MODEL;
+        GM_setValue("model", DEFAULT_MODEL);
+    }
 
     let settings = {
-        apiKey: GM_getValue("apiKey", DEFAULT_SETTINGS.apiKey),
-        model: GM_getValue("model", DEFAULT_SETTINGS.model)
+        apiKey: GM_getValue("apiKey", ""),
+        model: currentModel
     };
 
     // --- UI 状态 ---
@@ -101,7 +105,7 @@
                         <select id="model-select">
                             <option value="gemini-3-flash-preview" ${settings.model === 'gemini-3-flash-preview' ? 'selected' : ''}>Gemini 3 Flash (最新版/推荐)</option>
                             <option value="gemini-2.0-flash" ${settings.model === 'gemini-2.0-flash' ? 'selected' : ''}>Gemini 2.0 Flash</option>
-                            <option value="gemini-1.5-pro-latest" ${settings.model.includes('1.5-pro') ? 'selected' : ''}>Gemini 1.5 Pro</option>
+                            <option value="gemini-2.0-pro-exp-02-05" ${settings.model === 'gemini-2.0-pro-exp-02-05' ? 'selected' : ''}>Gemini 2.0 Pro</option>
                         </select>
                     </div>
                     <button class="save-btn" id="save-config">保存并应用</button>
@@ -116,7 +120,7 @@
             settings.apiKey = newKey;
             settings.model = newModel;
             isConfiguring = false;
-            showResult("设置已保存", "引擎已升级。现在划选文字开始“推敲”。");
+            showResult("设置已保存", "引擎配置成功！划选文字开始“推敲”。");
         };
         bindBasicEvents();
     }
@@ -133,7 +137,7 @@
         resultPanel.innerHTML = `
             ${renderHeader(title)}
             <div class="content">
-                ${isLoading ? `<div style="text-align:center; padding: 20px;"><span class="loading-spinner"></span><br><br><span style="font-size:12px; color:#6b7280;">Gemini 3 正在穿透迷雾...</span></div>` : formatResponse(content)}
+                ${isLoading ? `<div style="text-align:center; padding: 20px;"><span class="loading-spinner"></span><br><br><span style="font-size:12px; color:#6b7280;">Gemini 3 正在推敲中...</span></div>` : formatResponse(content)}
             </div>
         `;
         bindBasicEvents();
@@ -157,9 +161,8 @@
 
     async function callGemini(selectedText) {
         if (!settings.apiKey) { showConfig(); return; }
-        showResult("正在推敲...", "", true);
+        showResult("正在审计...", "", true);
 
-        // 为 Gemini 3 优化的“大白话”审计 Prompt
         const systemPrompt = `你是一个说话直白、拥有 Gemini 3 极致推理能力的逻辑审计师。你的目标是“求真”，帮普通人瞬间看穿任何言论、主张或热点背后的真相。
 禁止使用专业术语，禁止废话。请像在给最好的哥们拆解内幕一样输出：
 1. 到底在说什么：(一句话扒掉马甲，说出本质意图)
@@ -172,7 +175,6 @@
             systemInstruction: { parts: [{ text: systemPrompt }] }
         };
 
-        // 统一使用 v1beta 以支持最新预览版模型
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}`;
 
         GM_xmlhttpRequest({
