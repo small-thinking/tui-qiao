@@ -165,7 +165,11 @@
         const systemPrompt = `You are a calm, objective logic auditor. Your goal is truth seeking.
 **REPLY LANGUAGE MUST MATCH THE INPUT TEXT LANGUAGE.**
 Rules:
-1. OVERALL JUDGMENT FIRST: The very first sentence must be a concise overall conclusion (e.g., "This is a logically sound philosophical argument" or "This claim contains significant logical leaps").
+1. VISUAL JUDGMENT: Start the very first sentence with an emoji conclusion:
+   - ✅: Logically sound and factual.
+   - ❌: Significant logical fallacies or factual errors.
+   - ⚠️: Moderate confidence, logical ambiguity, or context required.
+   - ❓: Insufficient information to judge.
 2. Identify Nature: Only audit logic, facts, or technical claims. For pure subjective feelings, reply that it's outside of scope.
 3. Objective Inquiry: Acknowledge solid logic and point out leaps flatly.
 4. Evidence: ${settings.useSearch ? 'Provide up to 3 links if a claim is debunked or verified.' : 'Use internal knowledge only.'}
@@ -174,12 +178,9 @@ Rules:
 
         const payload = {
             contents: [{ parts: [{ text: selectedText }] }],
-            systemInstruction: { parts: [{ text: systemPrompt }] }
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            tools: [{ google_search: {} }]
         };
-        
-        if (settings.useSearch) {
-            payload.tools = [{ google_search: {} }];
-        }
 
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}`;
 
