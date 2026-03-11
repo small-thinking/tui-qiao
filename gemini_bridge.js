@@ -10,8 +10,9 @@ app.post('/analyze', (req, res) => {
     const text = req.body.text;
     console.log("Receiving text for analysis...");
     
-    // 调用 Gemini-CLI 和我们的 Tui-Qiao Skill
-    const command = `echo "${text.replace(/"/g, '\\"')}" | gemini skills use tui-qiao`;
+    // 直接在 Prompt 中定义“推敲”逻辑，不再依赖外部 Skill
+    const systemPrompt = "你是一个精通批判性思维的审计师。针对提供的营销、技术或硬件讨论，请进行逻辑拆解。必须包含：核心假设(Hidden Assumptions)、逻辑断层(Logical Leaps)、利益相关(Cui Bono)、第一性原理(First Principles)。语言精炼，直击痛点。";
+    const command = `echo "${text.replace(/"/g, '\\"')}" | gemini --system "${systemPrompt}"`;
     
     exec(command, (error, stdout, stderr) => {
         if (error) {
