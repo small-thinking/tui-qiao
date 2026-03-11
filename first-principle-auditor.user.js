@@ -35,7 +35,7 @@
     const STYLES = `
         :host { --primary: #2563eb; --bg: #ffffff; --text: #1f2937; --border: #e5e7eb; }
         .panel {
-            position: fixed; top: 20px; right: 20px; width: 400px; max-height: 85vh;
+            position: fixed; top: 20px; right: 20px; width: 420px; max-height: 85vh;
             background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); z-index: 2147483647;
             display: none; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica;
@@ -50,8 +50,9 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .icon-btn { cursor: pointer; color: #9ca3af; transition: color 0.2s; font-size: 16px; }
         .icon-btn:hover { color: var(--primary); }
-        a { color: var(--primary); text-decoration: none; }
+        a { color: var(--primary); text-decoration: none; word-break: break-all; font-size: 12px; display: block; margin-top: 4px; }
         a:hover { text-decoration: underline; }
+        .config-view { display: flex; flex-direction: column; gap: 12px; }
         .field label { font-size: 12px; font-weight: 600; color: #4b5563; }
         .field input, .field select { padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; width: 100%; box-sizing: border-box; }
         .save-btn { background: #111827; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: 600; }
@@ -169,17 +170,15 @@
         isConfiguring = false;
         showResult("Auditing...", "", true, selectedText);
 
-        const systemPrompt = `You are a rigorous logic auditor. Your goal is TRUTH SEEKING via PROACTIVE EVIDENCE.
+        const systemPrompt = `You are a calm, objective logic auditor. Your goal is HOLISTIC TRUTH SEEKING.
 **REPLY LANGUAGE MUST MATCH THE INPUT TEXT LANGUAGE.**
 Rules:
-1. PROACTIVE VERIFICATION: You MUST try to find related evidence to prove or disprove the claims. If a premise is unverified (e.g., "X joined Company Y"), explicitly search for it.
-2. CONFIDENT JUDGMENT: 
-   - Use ✅ if proven true or logically solid.
-   - Use ❌ if proven false or containing major fallacies.
-   - Use ⚠️ if evidence is contradictory.
-   - Use ❓ ONLY after a failed exhaustive search for evidence.
-3. LOGIC ONLY: Audit project progress, technical claims, or industry rumors. Ignore purely emotional narratives.
-4. CONCISENESS: Maximum 5 sentences total. Be direct.`;
+1. OVERALL JUDGMENT FIRST: Your very first sentence MUST be a qualitative verdict starting with an emoji (✅ verified/logical, ❌ likely false/debunked, ⚠️ contradictory/dubious, or ❓ unverified). The verdict must be a holistic assessment of the text as a whole.
+2. SYNTHESIS: Do NOT check points one-by-one. Instead, provide a cohesive narrative (up to 4 sentences) that synthesizes your evidence to support or disprove the text's central premise.
+3. EVIDENCE & PROBING: Use your search tools proactively to verify the main claims. If premises are provably wrong, state it clearly.
+4. SCOPE: Ignore purely emotional career narratives, but audit specific claims (project status, business rumors) even if they appear in a career context.
+5. CONCISENESS: Maximum 5 sentences total (excluding links).
+6. REFERENCES: Provide up to 3 supportive/disprove links at the bottom.`;
 
         const payload = {
             contents: [{ 
