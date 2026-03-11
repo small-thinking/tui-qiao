@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tui-Qiao (推敲) - Truth Seeker (Gemini 3 Edition)
 // @namespace    http://tampermonkey.net/
-// @version      1.5
+// @version      0.1
 // @description  A selection-based auditing tool to find "First Principles" powered by Gemini 3.
 // @author       small-thinking
 // @match        *://*/*
@@ -169,7 +169,7 @@
                         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
                         showResult("推敲结果", text || "No response content.");
                     } else {
-                        showResult("Error", `API Error ${response.status}`);
+                        showResult("出错啦", `API Error ${response.status}`);
                     }
                 } catch (e) {
                     showResult("Parsing Error", "解析数据失败。");
