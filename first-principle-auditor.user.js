@@ -17,18 +17,13 @@
     // --- 配置与迁移 ---
     const MODELS = {
         primary: "gemini-3-flash-preview",
-        fallback: "gemini-3.1-flash-lite-preview"
+        stable: "gemini-1.5-flash-latest"
     };
-
-    let currentModel = GM_getValue("model");
-    if (!currentModel || currentModel.includes("1.5-flash")) {
-        currentModel = MODELS.primary;
-        GM_setValue("model", MODELS.primary);
-    }
 
     let settings = {
         apiKey: GM_getValue("apiKey", ""),
-        model: currentModel
+        model: GM_getValue("model", MODELS.primary),
+        useSearch: GM_getValue("useSearch", true) // 新增：是否使用联网搜索
     };
 
     // --- UI 状态 ---
@@ -111,12 +106,15 @@
                         <input type="password" id="api-key-input" value="${settings.apiKey}" placeholder="Paste API Key">
                     </div>
                     <div class="field">
-                        <label>Preferred Engine</label>
+                        <label>Engine</label>
                         <select id="model-select">
-                            <option value="gemini-3-flash-preview" ${settings.model === 'gemini-3-flash-preview' ? 'selected' : ''}>Gemini 3 Flash</option>
-                            <option value="gemini-3.1-flash-lite-preview" ${settings.model === 'gemini-3.1-flash-lite-preview' ? 'selected' : ''}>Gemini 3.1 Flash Lite</option>
-                            <option value="gemini-2.0-flash" ${settings.model === 'gemini-2.0-flash' ? 'selected' : ''}>Gemini 2.0 Flash</option>
+                            <option value="gemini-3-flash-preview" ${settings.model === 'gemini-3-flash-preview' ? 'selected' : ''}>Gemini 3 Flash (逻辑强/配额紧)</option>
+                            <option value="gemini-1.5-flash-latest" ${settings.model === 'gemini-1.5-flash-latest' ? 'selected' : ''}>Gemini 1.5 Flash (配额多/最稳定)</option>
                         </select>
+                    </div>
+                    <div class="field" style="flex-direction:row; align-items:center; gap:8px;">
+                        <input type="checkbox" id="search-toggle" ${settings.useSearch ? 'checked' : ''} style="width:auto;">
+                        <label for="search-toggle">联网查证 (开启会消耗更多额度)</label>
                     </div>
                     <button class="save-btn" id="save-config">保存应用</button>
                 </div>
@@ -125,8 +123,10 @@
         shadowRoot.getElementById('save-config').onclick = () => {
             settings.apiKey = shadowRoot.getElementById('api-key-input').value;
             settings.model = shadowRoot.getElementById('model-select').value;
+            settings.useSearch = shadowRoot.getElementById('search-toggle').checked;
             GM_setValue("apiKey", settings.apiKey);
             GM_setValue("model", settings.model);
+            GM_setValue("useSearch", settings.useSearch);
             isConfiguring = false;
             showResult("Success", "设置已保存。");
         };
@@ -157,36 +157,38 @@
         return text.replace(urlRegex, (url) => `<a href="${url}" target="_blank">${url}</a>`);
     }
 
-    async function callGemini(selectedText, useFallback = false) {
+    async function callGemini(selectedText) {
         if (!settings.apiKey) { showConfig(); return; }
         isConfiguring = false; 
-        
-        const modelToUse = useFallback ? MODELS.fallback : settings.model;
-        showResult(useFallback ? "降级推敲中..." : "正在审计...", "", true);
+        showResult("正在审计...", "", true);
 
         const systemPrompt = `你是一个冷静、客观的逻辑审计师。你的任务是评估言论的逻辑置信度。
 回复语言必须与用户选中文字的语言保持一致。
 规则：
-1. 识别性质：只审计逻辑、事实或技术分析。对于纯主观感受不予评价。
+1. 识别性质：只审计包含逻辑、事实或技术分析的内容。对纯主观感受不予评价。
 2. 客观探究：如果逻辑严密、置信度高，请客观肯定。
-3. 证据支持：你可以使用内置的搜索能力核实事实。如果判定为谬误或事实，请务必在回复末尾提供最多3个证据链接。
-4. 极致精炼：总回复控制在5句话以内。
+3. 证据支持：${settings.useSearch ? '你可以使用搜索能力核实事实。如果判定为谬误或事实，请务必在末尾提供最多3个证据链接。' : '基于你的知识库进行判断，不使用搜索。'}
+4. 极致精炼：正文控制在5句话以内。
 5. 语言平实：直白陈述本质。`;
 
         const payload = {
             contents: [{ parts: [{ text: selectedText }] }],
-            systemInstruction: { parts: [{ text: systemPrompt }] },
-            tools: [{ google_search_retrieval: {} }]
+            systemInstruction: { parts: [{ text: systemPrompt }] }
         };
+        
+        // 只有开启了开关才加入 tools
+        if (settings.useSearch) {
+            payload.tools = [{ google_search_retrieval: {} }];
+        }
 
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${settings.apiKey}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}`;
 
         GM_xmlhttpRequest({
             method: "POST",
             url: url,
             headers: { "Content-Type": "application/json" },
             data: JSON.stringify(payload),
-            timeout: 25000,
+            timeout: 20000,
             onload: (response) => {
                 if (isConfiguring) return;
                 try {
@@ -194,25 +196,20 @@
                     if (response.status === 200) {
                         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
                         showResult("推敲结果", text || "无回复。");
-                    } else if (response.status === 429 && !useFallback) {
-                        console.log("Primary model rate limited. Retrying with Flash Lite...");
-                        callGemini(selectedText, true); // 触发降级重试
+                    } else if (response.status === 429) {
+                        showResult("配额用尽", "你的账号今日配额已达上限。建议：\n1. ⚙️ 关闭‘联网查证’以降低消耗。\n2. 切换引擎为 1.5 Flash（最稳定）。\n3. 检查你的 API 账单详情。");
                     } else {
                         showResult("出错啦", `错误码 ${response.status}: ${data.error?.message || '请求被拒绝'}`);
                     }
                 } catch (e) {
-                    showResult("解析失败", "数据解析出错。");
+                    showResult("解析失败", "返回数据无法解析。");
                 }
             },
             onerror: () => showResult("网络错误", "连接失败。"),
-            ontimeout: () => {
-                if (!useFallback) callGemini(selectedText, true);
-                else showResult("超时", "联网推敲超时。");
-            }
+            ontimeout: () => showResult("超时", "推敲超时。")
         });
     }
 
-    // --- 交互监听 ---
     document.addEventListener('mouseup', (e) => {
         const selection = window.getSelection().toString().trim();
         if (selection.length < 5) return;
