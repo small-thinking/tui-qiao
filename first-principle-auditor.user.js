@@ -22,7 +22,7 @@
 
     let settings = {
         apiKey: GM_getValue("apiKey", ""),
-        model: GM_getValue("model", MODELS.primary),
+        model: MODELS.primary,
         useSearch: GM_getValue("useSearch", true)
     };
 
@@ -73,19 +73,11 @@
         ensurePanel();
         resultPanel.style.display = 'flex';
         resultPanel.innerHTML = `
-            <div class="header">
-                <div class="header-title">🔍 ${title}</div>
-                <div style="display:flex; gap:10px;">
-                    <div class="icon-btn settings-trigger">⚙️</div>
-                    <div class="icon-btn" id="close-auditor">✕</div>
-                </div>
-            </div>
+            <div class="header"><div class="header-title">🔍 ${title}</div><div style="display:flex; gap:10px;"><div class="icon-btn settings-trigger">⚙️</div><div class="icon-btn" id="close-auditor">✕</div></div></div>
             <div class="content">
                 <div class="input-preview"><b>Input:</b>\n${selectedText}</div>
                 <div class="thought-box" id="thought-container"></div>
-                <div class="text-box" id="text-container">
-                    <div class="loading-indicator"><span class="loading-spinner"></span>Sifting truth...</div>
-                </div>
+                <div class="text-box" id="text-container"><div class="loading-indicator"><span class="loading-spinner"></span>Sifting truth...</div></div>
             </div>
         `;
         shadowRoot.getElementById('close-auditor').onclick = () => resultPanel.style.display = 'none';
@@ -121,22 +113,31 @@
 
     async function callGemini(selectedText) {
         if (!settings.apiKey) { showConfig(); return; }
-        isConfiguring = false;
-        initResultUI("Auditing...", selectedText);
+        isConfiguring = false; initResultUI("Auditing...", selectedText);
 
         const thoughtEl = shadowRoot.getElementById('thought-container');
         const textEl = shadowRoot.getElementById('text-container');
 
-        const systemPrompt = `You are a rigorous logic auditor. Goal: HOLISTIC TRUTH SEEKING. 
+        const systemPrompt = `You are a calm, objective logic auditor. Goal: HOLISTIC TRUTH SEEKING. 
 **REPLY LANGUAGE MUST MATCH INPUT TEXT LANGUAGE.**
 CASE 1: Subjective/Personal -> Reply "Personal narrative. Outside of audit scope."
 CASE 2: News/Rumors -> PROACTIVELY search. Holistic verdict (✅/❌/⚠️).
-CASE 3: Opinions -> Use First Principle reasoning.
+CASE 3: Opinions/Arguments -> Analyze the core logic and validity.
 Rules: Absolute Anonymity. Verdict First. Cohesive Synthesis. Max 5 sentences total. Provide up to 3 links.`;
+
+        // 显式降低安全限制，防止对技术讨论进行误拦截
+        const safetySettings = [
+            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "BLOCK_NONE" }
+        ];
 
         const payload = {
             contents: [{ role: "user", parts: [{ text: selectedText + ` [ID: ${Math.random().toString(36).substring(7)}]` }] }],
-            systemInstruction: { parts: [{ text: systemPrompt }] }
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            safetySettings: safetySettings
         };
         if (settings.useSearch) payload.tools = [{ google_search: {} }];
 
@@ -169,9 +170,9 @@ Rules: Absolute Anonymity. Verdict First. Cohesive Synthesis. Max 5 sentences to
             },
             onload: (response) => {
                 if (response.status !== 200) {
-                    textEl.innerHTML = `<span style="color:red;">Error ${response.status}: ${response.statusText}</span>`;
+                    textEl.innerHTML = `<span style="color:red;">Error ${response.status}: ${response.statusText || 'API Blocked/Key Invalid'}</span>`;
                 } else if (!fullContent && !fullThought) {
-                    textEl.innerHTML = `<i>No response. Possibly blocked by filters.</i>`;
+                    textEl.innerHTML = `<i style="color:#e11d48;">Response Blocked by Safety Filters.</i><br><small style="color:#9ca3af;">Try switching to Gemini 3.1 Flash Lite or disabling search.</small>`;
                 }
             }
         });
@@ -186,7 +187,7 @@ Rules: Absolute Anonymity. Verdict First. Cohesive Synthesis. Max 5 sentences to
         if (!floatingBtn) {
             floatingBtn = document.createElement('div');
             floatingBtn.innerHTML = '🔍 Tui-Qiao';
-            floatingBtn.style.cssText = `position: fixed; cursor: pointer; z-index: 2147483646; background: #111827; color: white; border-radius: 20px; padding: 6px 12px; display: none; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); font-family: -apple-system, sans-serif; font-size: 13px; font-weight: 600; user-select: none;`;
+            floatingBtn.style.cssText = `position: fixed; cursor: pointer; z-index: 2147483646; background: #111827; color: white; border-radius: 20px; padding: 6px 12px; display: none; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); font-family: -apple-system, sans-serif; font-size: 13px; font-weight: 600; user-select: none; transition: transform 0.1s;`;
             document.body.appendChild(floatingBtn);
             floatingBtn.onclick = (ev) => {
                 ev.stopPropagation();
