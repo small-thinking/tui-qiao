@@ -35,7 +35,7 @@
     const STYLES = `
         :host { --primary: #2563eb; --bg: #ffffff; --text: #1f2937; --border: #e5e7eb; }
         .panel {
-            position: fixed; top: 20px; right: 20px; width: 420px; max-height: 85vh;
+            position: fixed; top: 20px; right: 20px; width: 400px; max-height: 85vh;
             background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); z-index: 2147483647;
             display: none; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica;
@@ -173,12 +173,10 @@
         const systemPrompt = `You are a calm, objective logic auditor. Your goal is HOLISTIC TRUTH SEEKING.
 **REPLY LANGUAGE MUST MATCH THE INPUT TEXT LANGUAGE.**
 Rules:
-1. OVERALL JUDGMENT FIRST: Your very first sentence MUST be a qualitative verdict starting with an emoji (✅ verified/logical, ❌ likely false/debunked, ⚠️ contradictory/dubious, or ❓ unverified). The verdict must be a holistic assessment of the text as a whole.
-2. SYNTHESIS: Do NOT check points one-by-one. Instead, provide a cohesive narrative (up to 4 sentences) that synthesizes your evidence to support or disprove the text's central premise.
-3. EVIDENCE & PROBING: Use your search tools proactively to verify the main claims. If premises are provably wrong, state it clearly.
-4. SCOPE: Ignore purely emotional career narratives, but audit specific claims (project status, business rumors) even if they appear in a career context.
-5. CONCISENESS: Maximum 5 sentences total (excluding links).
-6. REFERENCES: Provide up to 3 supportive/disprove links at the bottom.`;
+1. OVERALL JUDGMENT FIRST: Start with ✅, ❌, ⚠️, or ❓.
+2. SYNTHESIS: Provide a cohesive narrative (up to 4 sentences).
+3. EVIDENCE: ${settings.useSearch ? 'Proactively verify claims. Provide links.' : 'Use internal knowledge.'}
+4. CONCISENESS: Max 5 sentences total.`;
 
         const payload = {
             contents: [{ 
@@ -195,20 +193,28 @@ Rules:
             url: `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${settings.apiKey}`,
             headers: { "Content-Type": "application/json", "Cache-Control": "no-cache" },
             data: JSON.stringify(payload),
-            timeout: 25000,
+            timeout: 35000, // 增加到 35 秒以应对搜索延迟
             onload: (response) => {
                 try {
                     const data = JSON.parse(response.responseText);
                     if (response.status === 200) {
                         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                        showResult("Audit Result", text || "No response.", false, selectedText);
+                        if (!text) {
+                            showResult("Blocked", "API returned an empty response. This might be due to safety filters.", false, selectedText);
+                        } else {
+                            showResult("Audit Result", text, false, selectedText);
+                        }
+                    } else if (response.status === 429) {
+                        showResult("Limit Reached", "Account quota or rate limit exceeded.", false, selectedText);
                     } else {
-                        showResult("Error", `Code ${response.status}`, false, selectedText);
+                        showResult("API Error", `Code ${response.status}: ${data.error?.message || 'Unknown error'}`, false, selectedText);
                     }
-                } catch (e) { showResult("Parsing Error", "Invalid data.", false, selectedText); }
+                } catch (e) { 
+                    showResult("Parse Error", `Failed to read API response. Raw: ${response.responseText.substring(0, 50)}...`, false, selectedText); 
+                }
             },
-            onerror: () => showResult("Network Error", "Failed.", false, selectedText),
-            ontimeout: () => showResult("Timeout", "Failed.", false, selectedText)
+            onerror: (err) => showResult("Network Error", `Connection failed: ${err.statusText || 'Check your proxy'}`, false, selectedText),
+            ontimeout: () => showResult("Timeout", "The audit took too long (35s+). Try disabling Search Grounding.", false, selectedText)
         });
     }
 
