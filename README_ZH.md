@@ -8,7 +8,7 @@
 
 ## 演示视频
 
-<video src="https://github.com/small-thinking/tui-qiao/raw/main/images/demo.mp4" width="100%" controls></video>
+![推敲演示](images/demo.gif)
 
 ## 安装指南
 

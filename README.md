@@ -8,7 +8,7 @@ Tui-Qiao (推敲) is a standalone cognitive filter designed to deconstruct claim
 
 ## Demo
 
-<video src="https://github.com/small-thinking/tui-qiao/raw/main/images/demo.mp4" width="100%" controls></video>
+![Tui-Qiao Demo](images/demo.gif)
 
 ## How to Install
 
