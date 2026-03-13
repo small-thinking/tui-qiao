@@ -6,6 +6,10 @@
 
 Tui-Qiao (推敲) is a standalone cognitive filter designed to deconstruct claims, identify hidden assumptions, and uncover first principles directly in your browser.
 
+## Demo
+
+<video src="images/demo.mp4" width="100%" controls></video>
+
 ## How to Install
 
 ### Step 1: Install Tampermonkey
